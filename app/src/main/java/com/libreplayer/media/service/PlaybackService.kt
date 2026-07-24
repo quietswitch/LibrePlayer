@@ -134,8 +134,17 @@ class PlaybackService : MediaSessionService() {
                 )
                 .build()
         }
-        val restoredIndex = snapshot.currentIndex.coerceIn(0, mediaItems.lastIndex)
-        player.setMediaItems(mediaItems, restoredIndex, snapshot.positionMs)
+        val restoredSelection = restoredQueueSelection(
+            queueIds = snapshot.queueIds,
+            savedCurrentIndex = snapshot.currentIndex,
+            restoredIds = songs.map { it.id },
+            savedPositionMs = snapshot.positionMs,
+        )
+        player.setMediaItems(
+            mediaItems,
+            restoredSelection.index,
+            restoredSelection.positionMs,
+        )
         player.repeatMode = snapshot.repeatMode
         player.shuffleModeEnabled = snapshot.shuffleEnabled
         player.prepare()
@@ -177,5 +186,45 @@ class PlaybackService : MediaSessionService() {
                 saveSnapshot(buildSnapshot())
             }
         }
+    }
+}
+
+internal data class RestoredQueueSelection(
+    val index: Int,
+    val positionMs: Long,
+)
+
+internal fun restoredQueueSelection(
+    queueIds: List<String>,
+    savedCurrentIndex: Int,
+    restoredIds: List<String>,
+    savedPositionMs: Long,
+): RestoredQueueSelection {
+    if (restoredIds.isEmpty()) {
+        return RestoredQueueSelection(index = -1, positionMs = 0L)
+    }
+    val savedCurrentId = queueIds.getOrNull(savedCurrentIndex)
+    val savedOccurrence = savedCurrentId?.let { mediaId ->
+        queueIds.take(savedCurrentIndex + 1).count { it == mediaId }
+    } ?: 0
+    var restoredOccurrence = 0
+    val restoredSavedIndex = restoredIds.indexOfFirst { mediaId ->
+        if (mediaId != savedCurrentId) {
+            false
+        } else {
+            restoredOccurrence++
+            restoredOccurrence == savedOccurrence
+        }
+    }
+    return if (restoredSavedIndex >= 0) {
+        RestoredQueueSelection(
+            index = restoredSavedIndex,
+            positionMs = savedPositionMs.coerceAtLeast(0L),
+        )
+    } else {
+        RestoredQueueSelection(
+            index = savedCurrentIndex.coerceIn(0, restoredIds.lastIndex),
+            positionMs = 0L,
+        )
     }
 }

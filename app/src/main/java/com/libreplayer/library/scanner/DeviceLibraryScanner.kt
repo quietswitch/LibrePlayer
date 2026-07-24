@@ -3,6 +3,7 @@ package com.libreplayer.library.scanner
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
 import com.libreplayer.data.repository.SongSourceType
@@ -30,7 +31,11 @@ data class ScannedSong(
 )
 
 sealed interface LibraryScanResult {
-    data class Success(val songs: List<ScannedSong>) : LibraryScanResult
+    data class Success(
+        val songs: List<ScannedSong>,
+        val isMediaStoreComplete: Boolean,
+    ) : LibraryScanResult
+
     data object PermissionRequired : LibraryScanResult
     data class Error(val message: String) : LibraryScanResult
 }
@@ -44,10 +49,10 @@ class DeviceLibraryScanner(
             val mediaStoreScan = queryMediaStoreSafely()
             val importedSongs = scanImportedRoots(importedRoots)
             val songs = ScannedSongDeduper.dedupe(mediaStoreScan.songs + importedSongs)
-            when {
-                songs.isEmpty() && mediaStoreScan.permissionRequired -> LibraryScanResult.PermissionRequired
-                else -> LibraryScanResult.Success(songs)
-            }
+            LibraryScanResult.Success(
+                songs = songs,
+                isMediaStoreComplete = !mediaStoreScan.permissionRequired,
+            )
         }.getOrElse { throwable ->
             when (throwable) {
                 is SecurityException -> LibraryScanResult.PermissionRequired
@@ -71,21 +76,7 @@ class DeviceLibraryScanner(
 
     private fun queryMediaStore(): List<ScannedSong> {
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.TRACK,
-            MediaStore.Audio.Media.YEAR,
-            MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.Audio.Media.DATE_MODIFIED,
-            MediaStore.Audio.Media.DISPLAY_NAME,
-            MediaStore.Audio.Media.RELATIVE_PATH,
-            MediaStore.Audio.Media.MIME_TYPE,
-            MediaStore.Audio.Media.ALBUM_ID,
-        )
+        val projection = mediaStoreAudioProjection(Build.VERSION.SDK_INT)
         val selection = buildString {
             append("${MediaStore.Audio.Media.IS_MUSIC} != 0")
             append(" AND ${MediaStore.Audio.Media.DURATION} >= 30000")
@@ -109,7 +100,11 @@ class DeviceLibraryScanner(
                 val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                 val dateModifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
                 val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-                val relativePathColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH)
+                val relativePathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH)
+                } else {
+                    -1
+                }
                 val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
                 val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
 
@@ -136,7 +131,9 @@ class DeviceLibraryScanner(
                             dateAddedEpochSeconds = dateAdded,
                             dateModifiedEpochSeconds = dateModified,
                             displayName = cursor.getString(displayNameColumn) ?: mediaId.toString(),
-                            relativePath = cursor.getString(relativePathColumn),
+                            relativePath = relativePathColumn
+                                .takeIf { it >= 0 }
+                                ?.let(cursor::getString),
                             mimeType = cursor.getString(mimeTypeColumn),
                             artworkUri = albumArtUri(albumId, contentUri.toString()),
                         ),
@@ -231,3 +228,22 @@ private data class MediaStoreScan(
     val songs: List<ScannedSong>,
     val permissionRequired: Boolean,
 )
+
+internal fun mediaStoreAudioProjection(sdkInt: Int): Array<String> =
+    buildList {
+        add(MediaStore.Audio.Media._ID)
+        add(MediaStore.Audio.Media.TITLE)
+        add(MediaStore.Audio.Media.ARTIST)
+        add(MediaStore.Audio.Media.ALBUM)
+        add(MediaStore.Audio.Media.DURATION)
+        add(MediaStore.Audio.Media.TRACK)
+        add(MediaStore.Audio.Media.YEAR)
+        add(MediaStore.Audio.Media.DATE_ADDED)
+        add(MediaStore.Audio.Media.DATE_MODIFIED)
+        add(MediaStore.Audio.Media.DISPLAY_NAME)
+        if (sdkInt >= Build.VERSION_CODES.Q) {
+            add(MediaStore.Audio.Media.RELATIVE_PATH)
+        }
+        add(MediaStore.Audio.Media.MIME_TYPE)
+        add(MediaStore.Audio.Media.ALBUM_ID)
+    }.toTypedArray()

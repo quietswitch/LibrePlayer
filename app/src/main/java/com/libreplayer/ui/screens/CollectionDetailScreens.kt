@@ -42,6 +42,7 @@ fun SearchScreen(
     onQueryChange: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
+    onAddToQueue: (Song) -> Unit,
     onOpenAudioDetails: (String) -> Unit,
     onOpenAlbum: (String) -> Unit,
     onOpenArtist: (String) -> Unit,
@@ -89,7 +90,7 @@ fun SearchScreen(
                                 SongOverflowMenu(
                                     song = song,
                                     onToggleFavorite = onToggleFavorite,
-                                    onAddToQueue = {},
+                                    onAddToQueue = onAddToQueue,
                                     onAddToPlaylist = { selectedSongForPlaylist = song },
                                     onOpenDetails = onOpenAudioDetails,
                                     onOpenAlbum = onOpenAlbum,
@@ -151,8 +152,11 @@ fun AlbumDetailScreen(
     settings: AppSettings,
     onBack: () -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
+    onAddToQueue: (Song) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onOpenAudioDetails: (String) -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onOpenArtist: (String) -> Unit,
     playlists: List<UserPlaylist>,
     onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
@@ -167,8 +171,11 @@ fun AlbumDetailScreen(
         playlists = playlists,
         onBack = onBack,
         onPlaySongs = onPlaySongs,
+        onAddToQueue = onAddToQueue,
         onToggleFavorite = onToggleFavorite,
         onOpenAudioDetails = onOpenAudioDetails,
+        onOpenAlbum = onOpenAlbum,
+        onOpenArtist = onOpenArtist,
         onAddSongToPlaylist = onAddSongToPlaylist,
     )
 }
@@ -180,8 +187,11 @@ fun ArtistDetailScreen(
     settings: AppSettings,
     onBack: () -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
+    onAddToQueue: (Song) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onOpenAudioDetails: (String) -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onOpenArtist: (String) -> Unit,
     playlists: List<UserPlaylist>,
     onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
@@ -196,8 +206,11 @@ fun ArtistDetailScreen(
         playlists = playlists,
         onBack = onBack,
         onPlaySongs = onPlaySongs,
+        onAddToQueue = onAddToQueue,
         onToggleFavorite = onToggleFavorite,
         onOpenAudioDetails = onOpenAudioDetails,
+        onOpenAlbum = onOpenAlbum,
+        onOpenArtist = onOpenArtist,
         onAddSongToPlaylist = onAddSongToPlaylist,
     )
 }
@@ -212,8 +225,11 @@ private fun DetailSongsScreen(
     playlists: List<UserPlaylist>,
     onBack: () -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
+    onAddToQueue: (Song) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onOpenAudioDetails: (String) -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onOpenArtist: (String) -> Unit,
     onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
     var selectedSongForPlaylist by remember { mutableStateOf<Song?>(null) }
@@ -254,11 +270,11 @@ private fun DetailSongsScreen(
                             SongOverflowMenu(
                                 song = song,
                                 onToggleFavorite = onToggleFavorite,
-                                onAddToQueue = {},
+                                onAddToQueue = onAddToQueue,
                                 onAddToPlaylist = { selectedSongForPlaylist = song },
                                 onOpenDetails = onOpenAudioDetails,
-                                onOpenAlbum = {},
-                                onOpenArtist = {},
+                                onOpenAlbum = onOpenAlbum,
+                                onOpenArtist = onOpenArtist,
                             )
                         },
                         onClick = { onPlaySongs(songs, index) },

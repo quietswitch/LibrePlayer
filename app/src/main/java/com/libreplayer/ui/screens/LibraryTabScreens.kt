@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -21,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -456,6 +458,7 @@ fun PlaylistsScreen(
 ) {
     var createDialogVisible by rememberSaveable { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<UserPlaylist?>(null) }
+    var deleteTarget by remember { mutableStateOf<UserPlaylist?>(null) }
 
     Scaffold(
         topBar = {
@@ -509,7 +512,7 @@ fun PlaylistsScreen(
                         trailingContent = {
                             PlaylistOverflowMenu(
                                 onRename = { renameTarget = playlist },
-                                onDelete = { onDeletePlaylist(playlist.id) },
+                                onDelete = { deleteTarget = playlist },
                             )
                         },
                         onClick = { onOpenPlaylist(playlist.id) },
@@ -545,4 +548,35 @@ fun PlaylistsScreen(
             },
         )
     }
+
+    deleteTarget?.let { playlist ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete playlist?") },
+            text = { Text("Delete \"${playlist.name}\"? This removes the playlist but not its audio files.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val target = deleteTarget ?: return@Button
+                        deleteTarget = null
+                        confirmPlaylistDeletion(target, onDeletePlaylist)
+                    },
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+}
+
+internal fun confirmPlaylistDeletion(
+    playlist: UserPlaylist,
+    onDeletePlaylist: (Long) -> Unit,
+) {
+    onDeletePlaylist(playlist.id)
 }

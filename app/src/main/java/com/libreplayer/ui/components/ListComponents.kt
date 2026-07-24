@@ -283,11 +283,15 @@ fun MiniPlayer(
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    text = currentSong.resolvedArtist,
+                    text = state.errorMessage ?: currentSong.resolvedArtist,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (state.errorMessage == null) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                 )
             }
             IconButton(onClick = onTogglePlayPause) {

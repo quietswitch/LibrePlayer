@@ -155,4 +155,5 @@ data class PlaybackUiState(
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val shuffleEnabled: Boolean = false,
     val playWhenReady: Boolean = false,
+    val errorMessage: String? = null,
 )

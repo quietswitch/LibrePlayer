@@ -66,7 +66,7 @@ internal fun SongOverflowMenu(
             DropdownMenuItem(
                 text = { Text("Add to queue") },
                 onClick = {
-                    onAddToQueue(song)
+                    routeAddToQueue(song, onAddToQueue)
                     expanded = false
                 },
             )
@@ -87,14 +87,14 @@ internal fun SongOverflowMenu(
             DropdownMenuItem(
                 text = { Text("Open album") },
                 onClick = {
-                    onOpenAlbum(albumKey(song))
+                    routeOpenAlbum(song, onOpenAlbum)
                     expanded = false
                 },
             )
             DropdownMenuItem(
                 text = { Text("Open artist") },
                 onClick = {
-                    onOpenArtist(artistKey(song))
+                    routeOpenArtist(song, onOpenArtist)
                     expanded = false
                 },
             )
@@ -296,5 +296,26 @@ internal fun albumKey(song: Song): String =
     "${song.resolvedAlbum.normalized()}|${song.resolvedArtist.normalized()}"
 
 internal fun artistKey(song: Song): String = song.resolvedArtist.normalized()
+
+internal fun routeAddToQueue(
+    song: Song,
+    onAddToQueue: (Song) -> Unit,
+) {
+    onAddToQueue(song)
+}
+
+internal fun routeOpenAlbum(
+    song: Song,
+    onOpenAlbum: (String) -> Unit,
+) {
+    onOpenAlbum(albumKey(song))
+}
+
+internal fun routeOpenArtist(
+    song: Song,
+    onOpenArtist: (String) -> Unit,
+) {
+    onOpenArtist(artistKey(song))
+}
 
 private fun String.normalized(): String = trim().lowercase(Locale.US)

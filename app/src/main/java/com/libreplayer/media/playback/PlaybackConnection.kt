@@ -5,7 +5,9 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class PlaybackConnection(
     private val context: Context,
     private val libraryRepository: LibraryRepository,
@@ -38,9 +41,13 @@ class PlaybackConnection(
     private var controller: MediaController? = null
     private var cachedQueue: List<Song> = emptyList()
     private var positionTickerJob: Job? = null
+    private var currentPlaybackErrorMessage: String? = null
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
+            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                currentPlaybackErrorMessage = null
+            }
             if (
                 events.contains(Player.EVENT_TIMELINE_CHANGED) ||
                 events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)
@@ -51,6 +58,12 @@ class PlaybackConnection(
             } else {
                 refreshUiState()
             }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            currentPlaybackErrorMessage = playbackErrorMessage(error.errorCode)
+            controller?.pause()
+            refreshUiState()
         }
     }
 
@@ -85,6 +98,7 @@ class PlaybackConnection(
 
     suspend fun playSong(queue: List<Song>, startIndex: Int) {
         val activeController = controller ?: awaitController() ?: return
+        currentPlaybackErrorMessage = null
         cachedQueue = queue
         activeController.setMediaItems(queue.map(Song::toMediaItem), startIndex, 0L)
         activeController.prepare()
@@ -95,6 +109,7 @@ class PlaybackConnection(
 
     suspend fun playQueue(queue: List<Song>, startIndex: Int = 0, positionMs: Long = 0L) {
         val activeController = controller ?: awaitController() ?: return
+        currentPlaybackErrorMessage = null
         cachedQueue = queue
         activeController.setMediaItems(queue.map(Song::toMediaItem), startIndex, positionMs)
         activeController.prepare()
@@ -111,9 +126,14 @@ class PlaybackConnection(
 
     fun togglePlayPause() {
         controller?.let { activeController ->
+            val retryAfterError = currentPlaybackErrorMessage != null
+            currentPlaybackErrorMessage = null
             if (activeController.isPlaying) {
                 activeController.pause()
             } else {
+                if (retryAfterError) {
+                    activeController.prepare()
+                }
                 activeController.play()
             }
             refreshUiState()
@@ -180,6 +200,7 @@ class PlaybackConnection(
             repeatMode = activeController.repeatMode,
             shuffleEnabled = activeController.shuffleModeEnabled,
             playWhenReady = activeController.playWhenReady,
+            errorMessage = currentPlaybackErrorMessage,
         )
     }
 
@@ -262,4 +283,21 @@ private suspend fun ListenableFuture<MediaController>.await(): MediaController? 
             java.util.concurrent.Executor { command -> command.run() },
         )
         continuation.invokeOnCancellation { cancel(true) }
+    }
+
+internal fun playbackErrorMessage(errorCode: Int): String =
+    when (errorCode) {
+        PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+            "This track file is no longer available."
+        PlaybackException.ERROR_CODE_IO_NO_PERMISSION ->
+            "LibrePlayer no longer has permission to read this track."
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ->
+            "This track uses an unsupported audio format."
+        PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+        PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
+            "This track appears to be malformed."
+        else ->
+            "Unable to play this track."
     }

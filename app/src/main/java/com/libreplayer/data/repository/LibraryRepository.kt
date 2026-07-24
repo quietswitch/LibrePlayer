@@ -159,20 +159,37 @@ class DefaultLibraryRepository(
                 }
 
                 is LibraryScanResult.Success -> {
-                    applyScanResult(result.songs)
-                    refreshStore.markSuccessfulRefresh()
-                    _syncState.value = LibrarySyncState()
+                    applyScanResult(
+                        songs = result.songs,
+                        isMediaStoreComplete = result.isMediaStoreComplete,
+                    )
+                    if (result.isMediaStoreComplete) {
+                        refreshStore.markSuccessfulRefresh()
+                    }
+                    _syncState.value = LibrarySyncState(
+                        permissionRequired = !result.isMediaStoreComplete,
+                    )
                 }
             }
         }
     }
 
-    private suspend fun applyScanResult(songs: List<ScannedSong>) {
+    private suspend fun applyScanResult(
+        songs: List<ScannedSong>,
+        isMediaStoreComplete: Boolean,
+    ) {
         val favoriteIds = songDao.getFavoriteIds().toSet()
+        val cachedMediaStoreSongs = if (isMediaStoreComplete) {
+            emptyList()
+        } else {
+            songDao.getSongsBySourceType(SongSourceType.MEDIA_STORE.name)
+        }
         val snapshot = withContext(Dispatchers.Default) {
             prepareLibrarySnapshot(
                 songs = songs,
                 favoriteIds = favoriteIds,
+                cachedMediaStoreSongs = cachedMediaStoreSongs,
+                isMediaStoreComplete = isMediaStoreComplete,
             )
         }
         database.withTransaction {
@@ -194,8 +211,15 @@ class DefaultLibraryRepository(
     private fun prepareLibrarySnapshot(
         songs: List<ScannedSong>,
         favoriteIds: Set<String>,
+        cachedMediaStoreSongs: List<SongEntity>,
+        isMediaStoreComplete: Boolean,
     ): PreparedLibrarySnapshot {
-        val songEntities = songs.map { song -> song.asEntity(song.id in favoriteIds) }
+        val scannedSongEntities = songs.map { song -> song.asEntity(song.id in favoriteIds) }
+        val songEntities = mergeScanSongEntities(
+            scannedSongs = scannedSongEntities,
+            cachedMediaStoreSongs = cachedMediaStoreSongs,
+            isMediaStoreComplete = isMediaStoreComplete,
+        )
         return PreparedLibrarySnapshot(
             songEntities = songEntities,
             albumEntities = buildAlbums(songEntities),
@@ -255,6 +279,18 @@ private data class PreparedLibrarySnapshot(
     val albumEntities: List<AlbumEntity>,
     val artistEntities: List<ArtistEntity>,
 )
+
+internal fun mergeScanSongEntities(
+    scannedSongs: List<SongEntity>,
+    cachedMediaStoreSongs: List<SongEntity>,
+    isMediaStoreComplete: Boolean,
+): List<SongEntity> {
+    if (isMediaStoreComplete) return scannedSongs
+    return (cachedMediaStoreSongs + scannedSongs)
+        .associateBy(SongEntity::id)
+        .values
+        .toList()
+}
 
 private const val AUTO_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000L
 

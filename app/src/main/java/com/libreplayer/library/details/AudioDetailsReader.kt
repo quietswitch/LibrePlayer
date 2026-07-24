@@ -180,7 +180,8 @@ class AudioDetailsReader(
 
     private fun readRetrieverMetadata(uri: Uri): RetrieverMetadata =
         runCatching {
-            MediaMetadataRetriever().use { retriever ->
+            val retriever = MediaMetadataRetriever()
+            try {
                 retriever.setDataSource(context, uri)
                 RetrieverMetadata(
                     title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE),
@@ -198,6 +199,8 @@ class AudioDetailsReader(
                     bitsPerSample = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITS_PER_SAMPLE)?.toIntOrNull(),
                     hasEmbeddedArtwork = retriever.embeddedPicture != null,
                 )
+            } finally {
+                retriever.release()
             }
         }.getOrDefault(RetrieverMetadata())
 

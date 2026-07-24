@@ -144,7 +144,16 @@ fun NowPlayingScreen(
                     text = "${song.resolvedArtist} - ${song.resolvedAlbum}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                playbackState.errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
             Slider(
                 value = sliderValue.coerceAtLeast(0f),

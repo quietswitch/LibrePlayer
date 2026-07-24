@@ -2,7 +2,6 @@ package com.libreplayer.library.scanner
 
 import com.libreplayer.data.repository.SongSourceType
 import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 internal object ScannedSongDeduper {
@@ -171,6 +170,6 @@ internal object ScannedSongDeduper {
 
     private fun decode(value: String): String =
         runCatching {
-            URLDecoder.decode(value, StandardCharsets.UTF_8)
+            URLDecoder.decode(value, "UTF-8")
         }.getOrDefault(value)
 }
