@@ -2,7 +2,7 @@
 
 ## Current Development Status
 
-Active
+Version `1.0.4` release preparation complete; public distribution requires external APK signing.
 
 ## What Is Working
 
@@ -18,7 +18,6 @@ Active
 
 - Artwork is representative for albums and artists rather than deeply curated
 - Permission UX is robust for normal and stricter devices, but still depends on Android OEM behavior
-- Open-source/release hardening is good for a personal active repo, but not fully polished for a long-lived public release track
 
 ## What Is Not Implemented
 
@@ -36,8 +35,8 @@ Active
 
 ## Last Meaningful Milestone Reached
 
-Version `1.0.3`: stable local playback, Audio Details, deduped library rows, working artwork pipeline across primary surfaces, and improved in-app permission recovery.
+Version `1.0.4`: stable local playback, Audio Details, deduped library rows, working artwork across primary surfaces, improved in-app permission recovery, and corrected multiline Now Playing layout.
 
 ## Next Recommended Step
 
-Add explicit Room migrations and a small round of release-hardening plus targeted instrumentation tests before expanding scope.
+Sign and verify the `1.0.4` release APK using private credentials stored outside the repository.

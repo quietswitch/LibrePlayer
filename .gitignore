@@ -14,15 +14,25 @@ app/build/
 
 # Android local configuration
 local.properties
+signing.properties
+key.properties
 
 # Android Studio / IntelliJ
 .idea/
 
-# Native build output
+# Generated Android packages and signatures
+*.apk
+*.aab
+*.apks
+*.idsig
 
 # Signing and private material
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pem
+*.key
 keystore.properties
 
 # Operating-system files

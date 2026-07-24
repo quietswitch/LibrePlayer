@@ -1,112 +1,84 @@
 # LibrePlayer
 
-LibrePlayer is a freeware, open-source, offline-first Android music player for local audio files.
-
-It is built to stay simple:
-
-- free to use
-- open source
-- local-first
-- no ads
-- no analytics
-- no user accounts
-- no cloud sync by default
-- no media uploaded off-device
+LibrePlayer is a freeware, open-source Android music player for audio files stored on the device. It is offline and local-first: playback, library data, playlists, favorites, settings, and history remain on the device.
 
 ## Features
 
-- Local library scan from `MediaStore`
-- Optional folder import through the Storage Access Framework
+- MediaStore library scanning with optional Storage Access Framework folder import
 - Songs, albums, artists, playlists, favorites, and recently played
-- Global search across songs, albums, and artists
+- Search across songs, albums, and artists
 - Queue playback with shuffle and repeat
-- Background playback with `MediaSessionService`
+- Background playback through a Media3 `MediaSessionService`
 - Lock-screen, notification, Bluetooth, and headset controls
-- Persistent queue and playback position restore
-- Local playlists stored in Room
-- Settings for theme, default sort, metadata fallback, and rescanning
+- Persistent queue and playback-position restoration
+- Local playlists stored with Room
+- Audio details, artwork, theme, sorting, metadata fallback, and rescan settings
 
-## Screenshots
+## Android Requirements
 
-Screenshot placeholders:
+- Android 8.0 (API 26) or newer
+- The project compiles and targets Android API 36
+- Android SDK Platform 36 and a Java 21 runtime available to Gradle are required to build the project
 
-- Library tabs
-- Now Playing
-- Playlist detail
-- Settings / privacy
+## Permissions
 
-## Architecture Overview
+LibrePlayer requests only the permissions needed for local playback:
 
-The app uses a practical single-module architecture:
+- `READ_MEDIA_AUDIO`: reads audio indexed by MediaStore on Android 13 and newer.
+- `READ_EXTERNAL_STORAGE`: reads local audio on Android 12L and older; the manifest limits this permission to API 32.
+- `FOREGROUND_SERVICE`: keeps active playback running in a foreground service.
+- `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: identifies that foreground service as media playback on supported Android versions.
 
-- `app / navigation`
-  - Activity entry point, app container, navigation graph
-- `data / database / repository`
-  - Room entities, DAOs, repositories, and domain models
-- `library / scanner / metadata`
-  - MediaStore scan, SAF folder traversal, metadata extraction
-- `media / playback / service`
-  - Media3 controller connection, playback persistence, background service
-- `ui / screens / components / theme`
-  - Compose screens, reusable UI, Material 3 theme
-- `settings`
-  - DataStore-backed app settings
-- `util`
-  - Formatting, permissions, and search helpers
+Folder import uses Android's system document picker, which grants access only to locations selected by the user. LibrePlayer does not request `MANAGE_EXTERNAL_STORAGE` or `INTERNET`.
 
-## Privacy Statement
+## Privacy
 
-LibrePlayer is designed to respect user privacy:
-
-- No ads
-- No analytics
-- No telemetry
-- No user account
-- No cloud sync by default
+- No ads, analytics, telemetry, or user accounts
+- No cloud sync
 - No media or metadata uploaded off-device
-- No `MANAGE_EXTERNAL_STORAGE`
-- No `INTERNET` permission
+- App backups are disabled
+- Library data, playlists, favorites, settings, and playback state are stored locally
 
-## Build And Run
+## Build and Verify on Windows
 
-1. Open the project folder in Android Studio.
-2. Let Android Studio sync the Gradle project.
-3. Confirm the Android SDK for API 36 is installed if Studio prompts for it.
-4. Select an emulator or a physical Android device.
-5. Run the `app` configuration.
-6. Grant local audio access when the app asks for it.
+Prerequisites are Android Studio or the Android SDK command-line tools, Android SDK Platform 36, and a Java 21 runtime. Run these commands from the repository root in Windows PowerShell:
 
-## Development Notes
+```powershell
+.\gradlew.bat testDebugUnitTest --console=plain
+.\gradlew.bat assembleDebug --console=plain
+.\gradlew.bat assembleRelease --console=plain
+```
 
-- Kotlin
-- Jetpack Compose with Material 3
-- Media3 / ExoPlayer
-- Room
-- DataStore
-- Coroutines + Flow
+Build artifacts are written to:
 
-## Roadmap
+- Debug APK: `app\build\outputs\apk\debug\app-debug.apk`
+- Unsigned release APK: `app\build\outputs\apk\release\app-release-unsigned.apk`
 
-### Version 1.1
+To build and install the debug variant on a connected device or emulator:
 
-- Better queue editing from the now-playing queue screen
-- Folder view for library browsing
-- More metadata cleanup and album-art caching polish
-- Lightweight instrumented UI tests
-- Optional per-tab sort preferences
+```powershell
+.\gradlew.bat installDebug --console=plain
+```
+
+The release task intentionally produces an unsigned APK. A public release APK must be signed with a private release key before installation or distribution. Signing keys, passwords, aliases, and credential files must remain outside Git. See [RELEASE.md](RELEASE.md) for the release procedure.
+
+## Architecture
+
+LibrePlayer is a single-module Kotlin application using Jetpack Compose, Material 3, Media3/ExoPlayer, Room, DataStore, coroutines, and Flow.
+
+## Current Limitations
+
+- Album and artist artwork uses a deterministic representative track and may not be canonical.
+- Permission behavior and settings surfaces can vary between Android device manufacturers.
+- Folder import is available, but there is no dedicated folder-browsing library view.
+- Streaming, remote libraries, lyrics, casting, and recommendations are outside the current scope.
+- Future Room schema changes require explicit migrations; the current database configuration can recreate local app data during an incompatible schema upgrade.
+- Automated coverage focuses on unit-tested logic rather than a broad instrumentation/UI suite.
 
 ## Contributing
 
-Issues and pull requests are welcome.
-
-Guidelines:
-
-- keep the app local-only
-- keep permissions minimal
-- avoid analytics, ads, accounts, and remote dependencies
-- prefer readable code over abstraction-heavy rewrites
-- add tests for pure logic where practical
+Issues and pull requests are welcome. Keep the app local-first, permissions minimal, and changes within the offline music-player scope. Add tests for pure logic where practical.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+LibrePlayer is available under the MIT License. See [LICENSE](LICENSE).
