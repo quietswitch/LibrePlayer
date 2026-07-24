@@ -29,6 +29,9 @@ interface SongDao : SongLookupQueries {
     @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
     suspend fun getSongById(id: String): SongEntity?
 
+    @Query("SELECT * FROM songs")
+    suspend fun getAllSongs(): List<SongEntity>
+
     @Query("SELECT * FROM songs WHERE sourceType = :sourceType")
     suspend fun getSongsBySourceType(sourceType: String): List<SongEntity>
 

@@ -126,18 +126,61 @@ class PlaybackConnection(
 
     fun togglePlayPause() {
         controller?.let { activeController ->
-            val retryAfterError = currentPlaybackErrorMessage != null
-            currentPlaybackErrorMessage = null
             if (activeController.isPlaying) {
                 activeController.pause()
-            } else {
-                if (retryAfterError) {
-                    activeController.prepare()
-                }
-                activeController.play()
+                refreshUiState()
+                return
             }
+
+            if (currentPlaybackErrorMessage != null) {
+                scope.launch {
+                    retryCurrentItemFromLibrary(activeController)
+                }
+                return
+            }
+
+            activeController.play()
             refreshUiState()
         }
+    }
+
+    private suspend fun retryCurrentItemFromLibrary(activeController: MediaController) {
+        val currentIndex = activeController.currentMediaItemIndex
+        val currentMediaId = activeController.currentMediaItem?.mediaId.orEmpty()
+
+        if (currentIndex < 0 || currentMediaId.isBlank()) {
+            refreshUiState()
+            return
+        }
+
+        val staleSong = cachedQueue.getOrNull(currentIndex)
+        val refreshedSong = libraryRepository.getSongById(currentMediaId)
+            ?: staleSong?.let { stale ->
+                findUniqueRediscoveredSong(
+                    staleSong = stale,
+                    currentSongs = libraryRepository.getAllSongs(),
+                )
+            }
+
+        if (refreshedSong == null) {
+            currentPlaybackErrorMessage = "This track file is no longer available."
+            refreshUiState()
+            return
+        }
+
+        activeController.replaceMediaItem(currentIndex, refreshedSong.toMediaItem())
+        cachedQueue = cachedQueue.toMutableList().also { queue ->
+            if (currentIndex in queue.indices) {
+                queue[currentIndex] = refreshedSong
+            }
+        }
+
+        currentPlaybackErrorMessage = null
+        activeController.prepare()
+        activeController.seekTo(currentIndex, 0L)
+        activeController.playWhenReady = true
+        activeController.play()
+        refreshUiState()
     }
 
     fun seekTo(positionMs: Long) {
@@ -272,6 +315,23 @@ private fun MediaItem.asFallbackSong(): Song {
         artworkUri = metadata.artworkUri?.toString(),
         isFavorite = false,
     )
+}
+
+internal fun findUniqueRediscoveredSong(
+    staleSong: Song,
+    currentSongs: List<Song>,
+): Song? {
+    val matches = currentSongs.filter { candidate ->
+        candidate.id != staleSong.id &&
+            candidate.sourceType == staleSong.sourceType &&
+            candidate.displayName.equals(staleSong.displayName, ignoreCase = true) &&
+            kotlin.math.abs(candidate.durationMs - staleSong.durationMs) <= 1_000L &&
+            candidate.resolvedTitle.equals(staleSong.resolvedTitle, ignoreCase = true) &&
+            candidate.resolvedArtist.equals(staleSong.resolvedArtist, ignoreCase = true) &&
+            candidate.resolvedAlbum.equals(staleSong.resolvedAlbum, ignoreCase = true)
+    }
+
+    return matches.singleOrNull()
 }
 
 private suspend fun ListenableFuture<MediaController>.await(): MediaController? =

@@ -40,6 +40,7 @@ interface LibraryRepository {
     suspend fun rescanLibrary()
     suspend fun getSongsByIds(ids: List<String>): List<Song>
     suspend fun getSongById(id: String): Song?
+    suspend fun getAllSongs(): List<Song>
     suspend fun toggleFavorite(songId: String)
     suspend fun markSongPlayed(songId: String)
     suspend fun addImportedRoot(uri: String, displayName: String)
@@ -100,6 +101,9 @@ class DefaultLibraryRepository(
     }
 
     override suspend fun getSongById(id: String): Song? = songDao.getSongById(id)?.asModel()
+
+    override suspend fun getAllSongs(): List<Song> =
+        songDao.getAllSongs().map(SongEntity::asModel)
 
     override suspend fun toggleFavorite(songId: String) {
         val song = songDao.getSongById(songId) ?: return
