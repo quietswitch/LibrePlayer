@@ -1,0 +1,3 @@
+﻿LibrePlayer repository root.
+
+Open this directory in Android Studio or run the Gradle wrapper from this directory.
