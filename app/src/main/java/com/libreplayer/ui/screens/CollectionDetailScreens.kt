@@ -197,22 +197,144 @@ fun ArtistDetailScreen(
 ) {
     val decodedId = Uri.decode(artistId)
     val songs = libraryState.songs.filter { artistKey(it) == decodedId }
+    val albumIds = songs.map(::albumKey).toSet()
+    val albums = libraryState.albums.filter { it.id in albumIds }
     val artist = libraryState.artists.firstOrNull { it.id == decodedId }
-    DetailSongsScreen(
+
+    ArtistCollectionScreen(
         title = artist?.name ?: "Artist",
-        subtitle = "${songs.size} songs",
+        albums = albums,
         songs = songs,
         settings = settings,
         playlists = playlists,
         onBack = onBack,
+        onOpenAlbum = onOpenAlbum,
         onPlaySongs = onPlaySongs,
         onAddToQueue = onAddToQueue,
         onToggleFavorite = onToggleFavorite,
         onOpenAudioDetails = onOpenAudioDetails,
-        onOpenAlbum = onOpenAlbum,
         onOpenArtist = onOpenArtist,
         onAddSongToPlaylist = onAddSongToPlaylist,
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ArtistCollectionScreen(
+    title: String,
+    albums: List<com.libreplayer.data.repository.Album>,
+    songs: List<Song>,
+    settings: AppSettings,
+    playlists: List<UserPlaylist>,
+    onBack: () -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onPlaySongs: (List<Song>, Int) -> Unit,
+    onAddToQueue: (Song) -> Unit,
+    onToggleFavorite: (String) -> Unit,
+    onOpenAudioDetails: (String) -> Unit,
+    onOpenArtist: (String) -> Unit,
+    onAddSongToPlaylist: (Long, String) -> Unit,
+) {
+    var selectedSongForPlaylist by remember { mutableStateOf<Song?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(title)
+                        Text(
+                            text = "${albums.size} albums - ${songs.size} songs",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                navigationIcon = {
+                    TextButton(onClick = onBack) {
+                        Text("Back")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        val contentPadding = secondaryScreenContentPadding(scaffoldPadding = padding)
+
+        if (songs.isEmpty()) {
+            EmptyState(
+                title = "No music",
+                message = "This artist does not have any readable local tracks right now.",
+                modifier = Modifier.padding(contentPadding),
+            )
+        } else {
+            LazyColumn(contentPadding = contentPadding) {
+                if (albums.isNotEmpty()) {
+                    item {
+                        SectionHeader("Albums")
+                    }
+
+                    itemsIndexed(
+                        items = albums,
+                        key = { _, album -> album.id },
+                    ) { _, album ->
+                        AlbumRow(
+                            album = album,
+                            onClick = { onOpenAlbum(album.id) },
+                        )
+                        DividerItem()
+                    }
+                }
+
+                item {
+                    SectionHeader("Songs")
+                }
+
+                itemsIndexed(
+                    items = songs,
+                    key = { _, song -> song.id },
+                ) { index, song ->
+                    SongRow(
+                        title = displayTitle(song, settings),
+                        subtitle = displaySubtitle(song),
+                        durationMs = song.durationMs,
+                        artworkUri = song.artworkUri,
+                        fallbackArtworkUri = song.contentUri,
+                        trailingContent = {
+                            SongOverflowMenu(
+                                song = song,
+                                onToggleFavorite = onToggleFavorite,
+                                onAddToQueue = onAddToQueue,
+                                onAddToPlaylist = {
+                                    selectedSongForPlaylist = song
+                                },
+                                onOpenDetails = onOpenAudioDetails,
+                                onOpenAlbum = onOpenAlbum,
+                                onOpenArtist = onOpenArtist,
+                            )
+                        },
+                        onClick = {
+                            onPlaySongs(songs, index)
+                        },
+                    )
+                    DividerItem()
+                }
+            }
+        }
+    }
+
+    selectedSongForPlaylist?.let { song ->
+        PlaylistPickerDialog(
+            song = song,
+            playlists = playlists,
+            onDismiss = {
+                selectedSongForPlaylist = null
+            },
+            onSelectPlaylist = { playlistId ->
+                onAddSongToPlaylist(playlistId, song.id)
+                selectedSongForPlaylist = null
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
