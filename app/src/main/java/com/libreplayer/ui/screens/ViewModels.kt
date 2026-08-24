@@ -334,6 +334,12 @@ class SettingsViewModel(
         }
     }
 
+    fun rebuildLibrary() {
+        viewModelScope.launch {
+            libraryRepository.rebuildLibrary()
+        }
+    }
+
     companion object {
         fun factory(): ViewModelProvider.Factory = viewModelFactory {
             initializer {

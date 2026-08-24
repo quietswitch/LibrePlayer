@@ -47,6 +47,9 @@ interface SongDao : SongLookupQueries {
     @Query("DELETE FROM songs WHERE id NOT IN (:ids)")
     suspend fun deleteSongsMissingFrom(ids: List<String>)
 
+    @Query("DELETE FROM songs WHERE id IN (:ids)")
+    suspend fun deleteSongsByIds(ids: List<String>)
+
     @Query("UPDATE songs SET isFavorite = :isFavorite WHERE id = :songId")
     suspend fun updateFavorite(songId: String, isFavorite: Boolean)
 }
@@ -56,11 +59,17 @@ interface AlbumDao {
     @Query("SELECT * FROM albums ORDER BY sortKey ASC")
     fun observeAlbums(): Flow<List<AlbumEntity>>
 
+    @Query("SELECT * FROM albums")
+    suspend fun getAllAlbums(): List<AlbumEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAlbums(albums: List<AlbumEntity>)
 
     @Query("DELETE FROM albums")
     suspend fun clearAlbums()
+
+    @Query("DELETE FROM albums WHERE id IN (:ids)")
+    suspend fun deleteAlbumsByIds(ids: List<String>)
 }
 
 @Dao
@@ -68,11 +77,17 @@ interface ArtistDao {
     @Query("SELECT * FROM artists ORDER BY sortKey ASC")
     fun observeArtists(): Flow<List<ArtistEntity>>
 
+    @Query("SELECT * FROM artists")
+    suspend fun getAllArtists(): List<ArtistEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertArtists(artists: List<ArtistEntity>)
 
     @Query("DELETE FROM artists")
     suspend fun clearArtists()
+
+    @Query("DELETE FROM artists WHERE id IN (:ids)")
+    suspend fun deleteArtistsByIds(ids: List<String>)
 }
 
 @Dao

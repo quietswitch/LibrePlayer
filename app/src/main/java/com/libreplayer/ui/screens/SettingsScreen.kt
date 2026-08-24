@@ -45,6 +45,7 @@ fun SettingsScreen(
     onShowFileNamesChange: (Boolean) -> Unit,
     onDefaultSortChange: (LibrarySortOption) -> Unit,
     onRescan: () -> Unit,
+    onRebuild: () -> Unit,
     onAddImportedRoot: (Uri, String) -> Unit,
     onRemoveImportedRoot: (String) -> Unit,
     contentPadding: PaddingValues,
@@ -133,6 +134,14 @@ fun SettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onRescan) {
                         Text("Rescan library")
+                    }
+                    Text(
+                        text = "Rescan checks only new, changed, and removed music.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onRebuild) {
+                        Text("Rebuild library completely")
                     }
                     OutlinedButton(onClick = { treeLauncher.launch(null) }) {
                         Text("Import folder")

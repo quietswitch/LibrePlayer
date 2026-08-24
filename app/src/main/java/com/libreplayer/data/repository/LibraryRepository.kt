@@ -1,5 +1,6 @@
 package com.libreplayer.data.repository
 
+import android.util.Log
 import androidx.room.withTransaction
 import com.libreplayer.data.database.AppDatabase
 import com.libreplayer.data.database.entity.AlbumEntity
@@ -8,8 +9,8 @@ import com.libreplayer.data.database.entity.ImportedRootEntity
 import com.libreplayer.data.database.entity.RecentlyPlayedEntity
 import com.libreplayer.data.database.entity.SongEntity
 import com.libreplayer.library.scanner.DeviceLibraryScanner
+import com.libreplayer.library.scanner.LibraryScanMode
 import com.libreplayer.library.scanner.LibraryScanResult
-import com.libreplayer.library.scanner.ScannedSong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.util.Locale
 
 data class LibrarySyncState(
     val isLoading: Boolean = false,
@@ -38,6 +38,7 @@ interface LibraryRepository {
     fun observeImportedRoots(): Flow<List<ImportedRoot>>
     suspend fun refreshLibraryIfNeeded()
     suspend fun rescanLibrary()
+    suspend fun rebuildLibrary()
     suspend fun getSongsByIds(ids: List<String>): List<Song>
     suspend fun getSongById(id: String): Song?
     suspend fun getAllSongs(): List<Song>
@@ -87,11 +88,15 @@ class DefaultLibraryRepository(
         importedRootDao.observeRoots().map { roots -> roots.map(ImportedRootEntity::asModel) }
 
     override suspend fun refreshLibraryIfNeeded() {
-        refreshLibrary(forceRefresh = false)
+        refreshLibrary(forceRefresh = false, forceRebuild = false)
     }
 
     override suspend fun rescanLibrary() {
-        refreshLibrary(forceRefresh = true)
+        refreshLibrary(forceRefresh = true, forceRebuild = false)
+    }
+
+    override suspend fun rebuildLibrary() {
+        refreshLibrary(forceRefresh = true, forceRebuild = true)
     }
 
     override suspend fun getSongsByIds(ids: List<String>): List<Song> {
@@ -135,15 +140,18 @@ class DefaultLibraryRepository(
         rescanLibrary()
     }
 
-    private suspend fun refreshLibrary(forceRefresh: Boolean) {
+    private suspend fun refreshLibrary(
+        forceRefresh: Boolean,
+        forceRebuild: Boolean,
+    ) {
         refreshMutex.withLock {
-            val cachedSongCount = songDao.countSongs()
+            val cachedSongs = songDao.getAllSongs()
             val importedRoots = importedRootDao.getRoots().map { it.uri }
             val lastSuccessfulRefreshAt = refreshStore.lastSuccessfulRefreshAtMillis()
             if (
                 !shouldRefreshLibrary(
                     forceRefresh = forceRefresh,
-                    cachedSongCount = cachedSongCount,
+                    cachedSongCount = cachedSongs.size,
                     lastSuccessfulRefreshAtMillis = lastSuccessfulRefreshAt,
                     nowMillis = System.currentTimeMillis(),
                 )
@@ -152,8 +160,28 @@ class DefaultLibraryRepository(
                 return
             }
 
+            val nowMillis = System.currentTimeMillis()
+            val scanMode = if (
+                shouldPerformFullReconciliation(
+                    forceRebuild = forceRebuild,
+                    cachedSongCount = cachedSongs.size,
+                    lastFullReconciliationAtMillis = refreshStore.lastFullReconciliationAtMillis(),
+                    nowMillis = nowMillis,
+                )
+            ) {
+                LibraryScanMode.FULL_REBUILD
+            } else {
+                LibraryScanMode.INCREMENTAL
+            }
             _syncState.value = LibrarySyncState(isLoading = true)
-            when (val result = scanner.scan(importedRoots)) {
+            when (
+                val result = scanner.scan(
+                    importedRoots = importedRoots,
+                    cachedSongs = cachedSongs.map(SongEntity::asScannedSong),
+                    checkpoint = refreshStore.mediaStoreCheckpoint(),
+                    mode = scanMode,
+                )
+            ) {
                 is LibraryScanResult.PermissionRequired -> {
                     _syncState.value = LibrarySyncState(permissionRequired = true)
                 }
@@ -163,13 +191,14 @@ class DefaultLibraryRepository(
                 }
 
                 is LibraryScanResult.Success -> {
-                    applyScanResult(
-                        songs = result.songs,
-                        isMediaStoreComplete = result.isMediaStoreComplete,
-                    )
+                    val writeStatistics = applyScanResult(result)
                     if (result.isMediaStoreComplete) {
-                        refreshStore.markSuccessfulRefresh()
+                        refreshStore.markSuccessfulSync(
+                            checkpoint = result.mediaStoreCheckpoint,
+                            fullReconciliation = result.performedFullReconciliation,
+                        )
                     }
+                    logSyncStatistics(result, writeStatistics)
                     _syncState.value = LibrarySyncState(
                         permissionRequired = !result.isMediaStoreComplete,
                     )
@@ -178,89 +207,76 @@ class DefaultLibraryRepository(
         }
     }
 
-    private suspend fun applyScanResult(
-        songs: List<ScannedSong>,
-        isMediaStoreComplete: Boolean,
-    ) {
-        val favoriteIds = songDao.getFavoriteIds().toSet()
-        val cachedMediaStoreSongs = if (isMediaStoreComplete) {
-            emptyList()
-        } else {
-            songDao.getSongsBySourceType(SongSourceType.MEDIA_STORE.name)
-        }
-        val snapshot = withContext(Dispatchers.Default) {
-            prepareLibrarySnapshot(
-                songs = songs,
-                favoriteIds = favoriteIds,
-                cachedMediaStoreSongs = cachedMediaStoreSongs,
-                isMediaStoreComplete = isMediaStoreComplete,
+    private suspend fun applyScanResult(result: LibraryScanResult.Success): LibraryWriteStatistics {
+        val currentSongs = songDao.getAllSongs()
+        val currentAlbums = albumDao.getAllAlbums()
+        val currentArtists = artistDao.getAllArtists()
+        val changes = withContext(Dispatchers.Default) {
+            prepareLibraryChanges(
+                scannedSongs = result.songs,
+                currentSongs = currentSongs,
+                currentAlbums = currentAlbums,
+                currentArtists = currentArtists,
             )
         }
+        if (!result.performedFullReconciliation && !changes.hasChanges) {
+            return LibraryWriteStatistics()
+        }
+
         database.withTransaction {
-            songDao.clearSongs()
-            if (snapshot.songEntities.isNotEmpty()) {
-                songDao.upsertSongs(snapshot.songEntities)
+            if (result.performedFullReconciliation) {
+                songDao.clearSongs()
+                albumDao.clearAlbums()
+                artistDao.clearArtists()
+                if (changes.songs.isNotEmpty()) songDao.upsertSongs(changes.songs)
+                if (changes.albums.isNotEmpty()) albumDao.upsertAlbums(changes.albums)
+                if (changes.artists.isNotEmpty()) artistDao.upsertArtists(changes.artists)
+            } else {
+                if (changes.deletedSongIds.isNotEmpty()) songDao.deleteSongsByIds(changes.deletedSongIds)
+                if (changes.songUpserts.isNotEmpty()) songDao.upsertSongs(changes.songUpserts)
+                if (changes.deletedAlbumIds.isNotEmpty()) albumDao.deleteAlbumsByIds(changes.deletedAlbumIds)
+                if (changes.albumUpserts.isNotEmpty()) albumDao.upsertAlbums(changes.albumUpserts)
+                if (changes.deletedArtistIds.isNotEmpty()) artistDao.deleteArtistsByIds(changes.deletedArtistIds)
+                if (changes.artistUpserts.isNotEmpty()) artistDao.upsertArtists(changes.artistUpserts)
             }
-            albumDao.clearAlbums()
-            if (snapshot.albumEntities.isNotEmpty()) {
-                albumDao.upsertAlbums(snapshot.albumEntities)
-            }
-            artistDao.clearArtists()
-            if (snapshot.artistEntities.isNotEmpty()) {
-                artistDao.upsertArtists(snapshot.artistEntities)
-            }
+        }
+        return if (result.performedFullReconciliation) {
+            LibraryWriteStatistics(
+                songUpserts = changes.songs.size,
+                songDeletes = currentSongs.size,
+                albumUpserts = changes.albums.size,
+                albumDeletes = currentAlbums.size,
+                artistUpserts = changes.artists.size,
+                artistDeletes = currentArtists.size,
+            )
+        } else {
+            LibraryWriteStatistics(
+                songUpserts = changes.songUpserts.size,
+                songDeletes = changes.deletedSongIds.size,
+                albumUpserts = changes.albumUpserts.size,
+                albumDeletes = changes.deletedAlbumIds.size,
+                artistUpserts = changes.artistUpserts.size,
+                artistDeletes = changes.deletedArtistIds.size,
+            )
         }
     }
 
-    private fun prepareLibrarySnapshot(
-        songs: List<ScannedSong>,
-        favoriteIds: Set<String>,
-        cachedMediaStoreSongs: List<SongEntity>,
-        isMediaStoreComplete: Boolean,
-    ): PreparedLibrarySnapshot {
-        val scannedSongEntities = songs.map { song -> song.asEntity(song.id in favoriteIds) }
-        val songEntities = mergeScanSongEntities(
-            scannedSongs = scannedSongEntities,
-            cachedMediaStoreSongs = cachedMediaStoreSongs,
-            isMediaStoreComplete = isMediaStoreComplete,
-        )
-        return PreparedLibrarySnapshot(
-            songEntities = songEntities,
-            albumEntities = buildAlbums(songEntities),
-            artistEntities = buildArtists(songEntities),
+    private fun logSyncStatistics(
+        result: LibraryScanResult.Success,
+        writes: LibraryWriteStatistics,
+    ) {
+        val scan = result.statistics
+        Log.i(
+            LIBRARY_SYNC_LOG_TAG,
+            "full=${result.performedFullReconciliation} elapsedMs=${scan.elapsedMillis} " +
+                "mediaRows=${scan.mediaStoreRowsRead} mediaIdRows=${scan.mediaStoreIdRowsRead} " +
+                "documents=${scan.documentFilesVisited} metadataReads=${scan.documentMetadataReads} " +
+                "metadataFailures=${scan.documentMetadataFailures} " +
+                "reused=${scan.cachedSongsReused} songUpserts=${writes.songUpserts} " +
+                "songDeletes=${writes.songDeletes} albumWrites=${writes.albumUpserts + writes.albumDeletes} " +
+                "artistWrites=${writes.artistUpserts + writes.artistDeletes}",
         )
     }
-
-    private fun buildAlbums(songs: List<SongEntity>): List<AlbumEntity> =
-        songs.groupBy { "${it.albumSortKey}|${it.artistSortKey}" }
-            .map { (key, groupedSongs) ->
-                val first = groupedSongs.first()
-                AlbumEntity(
-                    id = key,
-                    title = first.album?.takeIf(String::isNotBlank) ?: "Unknown album",
-                    artist = first.artist?.takeIf(String::isNotBlank),
-                    songCount = groupedSongs.size,
-                    totalDurationMs = groupedSongs.sumOf { it.durationMs },
-                    artworkUri = groupedSongs.firstNotNullOfOrNull { it.artworkUri },
-                    sortKey = first.albumSortKey,
-                )
-            }
-            .sortedBy { it.sortKey }
-
-    private fun buildArtists(songs: List<SongEntity>): List<ArtistEntity> =
-        songs.groupBy { it.artistSortKey }
-            .map { (key, groupedSongs) ->
-                val first = groupedSongs.first()
-                ArtistEntity(
-                    id = key,
-                    name = first.artist?.takeIf(String::isNotBlank) ?: "Unknown artist",
-                    songCount = groupedSongs.size,
-                    totalDurationMs = groupedSongs.sumOf { it.durationMs },
-                    artworkUri = groupedSongs.firstNotNullOfOrNull { it.artworkUri },
-                    sortKey = key,
-                )
-            }
-            .sortedBy { it.sortKey }
 }
 
 internal fun shouldRefreshLibrary(
@@ -278,52 +294,25 @@ internal fun shouldRefreshLibrary(
         else -> false
     }
 
-private data class PreparedLibrarySnapshot(
-    val songEntities: List<SongEntity>,
-    val albumEntities: List<AlbumEntity>,
-    val artistEntities: List<ArtistEntity>,
-)
-
-internal fun mergeScanSongEntities(
-    scannedSongs: List<SongEntity>,
-    cachedMediaStoreSongs: List<SongEntity>,
-    isMediaStoreComplete: Boolean,
-): List<SongEntity> {
-    if (isMediaStoreComplete) return scannedSongs
-    return (cachedMediaStoreSongs + scannedSongs)
-        .associateBy(SongEntity::id)
-        .values
-        .toList()
-}
-
 private const val AUTO_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000L
+private const val FULL_RECONCILIATION_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000L
+private const val LIBRARY_SYNC_LOG_TAG = "LibrePlayerLibrarySync"
 
-private fun ScannedSong.asEntity(isFavorite: Boolean): SongEntity {
-    val normalizedTitle = title?.takeIf { it.isNotBlank() } ?: displayName.substringBeforeLast('.')
-    val normalizedArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown artist"
-    val normalizedAlbum = album?.takeIf { it.isNotBlank() } ?: "Unknown album"
-    return SongEntity(
-        id = id,
-        sourceType = sourceType.name,
-        contentUri = contentUri,
-        title = title,
-        artist = artist,
-        album = album,
-        durationMs = durationMs,
-        trackNumber = trackNumber,
-        discNumber = discNumber,
-        year = year,
-        dateAddedEpochSeconds = dateAddedEpochSeconds,
-        dateModifiedEpochSeconds = dateModifiedEpochSeconds,
-        displayName = displayName,
-        relativePath = relativePath,
-        mimeType = mimeType,
-        artworkUri = artworkUri,
-        isFavorite = isFavorite,
-        titleSortKey = normalizedTitle.normalizedSortKey(),
-        artistSortKey = normalizedArtist.normalizedSortKey(),
-        albumSortKey = normalizedAlbum.normalizedSortKey(),
-    )
-}
+internal fun shouldPerformFullReconciliation(
+    forceRebuild: Boolean,
+    cachedSongCount: Int,
+    lastFullReconciliationAtMillis: Long,
+    nowMillis: Long,
+    intervalMillis: Long = FULL_RECONCILIATION_INTERVAL_MS,
+): Boolean =
+    forceRebuild || cachedSongCount <= 0 || lastFullReconciliationAtMillis <= 0L ||
+        nowMillis - lastFullReconciliationAtMillis >= intervalMillis
 
-private fun String.normalizedSortKey(): String = trim().lowercase(Locale.US)
+private data class LibraryWriteStatistics(
+    val songUpserts: Int = 0,
+    val songDeletes: Int = 0,
+    val albumUpserts: Int = 0,
+    val albumDeletes: Int = 0,
+    val artistUpserts: Int = 0,
+    val artistDeletes: Int = 0,
+)

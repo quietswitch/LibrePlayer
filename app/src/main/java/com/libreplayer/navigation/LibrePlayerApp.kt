@@ -158,6 +158,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                         onShowFileNamesChange = settingsViewModel::setShowFileNamesWhenMetadataMissing,
                         onDefaultSortChange = settingsViewModel::setDefaultSortOption,
                         onRescan = settingsViewModel::rescanLibrary,
+                        onRebuild = settingsViewModel::rebuildLibrary,
                         onAddImportedRoot = libraryViewModel::addImportedRoot,
                         onRemoveImportedRoot = libraryViewModel::removeImportedRoot,
                         contentPadding = PaddingValues(0.dp),
