@@ -44,3 +44,11 @@ Version `1.0.4` release candidate: stable local playback, incremental library sy
 ## Next Recommended Step
 
 After the pre-publication verification is accepted, create the permanent pseudonymous release key outside the repository, then sign and verify the `1.0.4` APK according to `RELEASE.md`.
+
+## Benchmark Foundation
+
+Q1.1a adds an isolated, non-debuggable `benchmark` app variant and a `:benchmark` Macrobenchmark test module containing one cold-start smoke test.
+
+- Assemble both benchmark APKs with `.\gradlew.bat :app:assembleBenchmark :benchmark:assembleBenchmark --console=plain`.
+- On an already-running Android emulator whose adb serial matches `emulator-<digits>`, run `.\gradlew.bat :benchmark:connectedBenchmarkAndroidTest --console=plain`. Never run this command while a physical device is connected.
+- The smoke result only confirms that the benchmark path works. It is not a public performance claim or regression threshold; physical-device authority and controlled datasets come later in Q1.1.
