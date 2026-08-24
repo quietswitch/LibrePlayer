@@ -53,4 +53,50 @@ class LibraryRefreshPolicyTest {
             ),
         ).isTrue()
     }
+
+    @Test
+    fun `initial and explicit rebuilds are full reconciliations`() {
+        assertThat(
+            shouldPerformFullReconciliation(
+                forceRebuild = false,
+                cachedSongCount = 0,
+                lastFullReconciliationAtMillis = 0L,
+                nowMillis = 1_000L,
+            ),
+        ).isTrue()
+        assertThat(
+            shouldPerformFullReconciliation(
+                forceRebuild = true,
+                cachedSongCount = 100,
+                lastFullReconciliationAtMillis = 900L,
+                nowMillis = 1_000L,
+            ),
+        ).isTrue()
+    }
+
+    @Test
+    fun `recent authoritative scan allows incremental refresh`() {
+        assertThat(
+            shouldPerformFullReconciliation(
+                forceRebuild = false,
+                cachedSongCount = 100,
+                lastFullReconciliationAtMillis = 900L,
+                nowMillis = 1_000L,
+                intervalMillis = 1_000L,
+            ),
+        ).isFalse()
+    }
+
+    @Test
+    fun `expired authority window forces reconciliation`() {
+        assertThat(
+            shouldPerformFullReconciliation(
+                forceRebuild = false,
+                cachedSongCount = 100,
+                lastFullReconciliationAtMillis = 1_000L,
+                nowMillis = 3_000L,
+                intervalMillis = 1_000L,
+            ),
+        ).isTrue()
+    }
 }
