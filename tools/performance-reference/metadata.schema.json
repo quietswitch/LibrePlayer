@@ -1,42 +1,65 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://libreplayer.example/schemas/performance-run-metadata-v1.json",
+  "$id": "https://libreplayer.example/schemas/performance-run-metadata-v2.json",
   "title": "LibrePlayer performance comparison run metadata",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "authority",
+    "variant",
+    "session",
     "reference_git_commit",
     "development_git_commit",
     "benchmark_harness_revision",
+    "measurement_hook_sha256",
     "dataset_profile",
     "dataset_fingerprint_sha256",
     "device",
+    "device_configuration",
     "toolchain",
     "compilation_mode",
+    "startup_mode",
     "iteration_count",
     "run_timestamp_utc",
+    "mediastore_tracks",
+    "precondition",
     "raw_result_path",
-    "trace_paths"
+    "trace_paths",
+    "summary_path"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
+    "authority": {
+      "const": "CONTROLLED REGRESSION RESULTS FOR THIS ENVIRONMENT — NOT A UNIVERSAL PERFORMANCE CLAIM"
+    },
+    "variant": { "enum": ["reference", "development"] },
+    "session": { "type": "integer", "minimum": 1, "maximum": 3 },
     "reference_git_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "development_git_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-    "benchmark_harness_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "benchmark_harness_revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|q1\\.1c-sha256:[0-9a-f]{64})$"
+    },
+    "measurement_hook_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "dataset_profile": { "enum": ["EMPTY", "SMALL", "MEDIUM", "LARGE", "STRESS"] },
     "dataset_fingerprint_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "device": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["authority_name", "serial", "android_version", "api_level", "abi"],
+      "required": ["authority_name", "serial", "android_version", "api_level", "abi", "locale"],
       "properties": {
         "authority_name": { "type": "string" },
         "serial": { "type": "string" },
         "android_version": { "type": "string" },
         "api_level": { "type": "integer" },
-        "abi": { "type": "string" }
+        "abi": { "type": "string" },
+        "locale": { "type": "string" }
       }
+    },
+    "device_configuration": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
     },
     "toolchain": {
       "type": "object",
@@ -49,11 +72,22 @@
         "build_tools": { "type": "string" }
       }
     },
-    "compilation_mode": { "type": "string" },
-    "iteration_count": { "type": "integer", "minimum": 1 },
+    "compilation_mode": { "const": "Full" },
+    "startup_mode": { "const": "COLD" },
+    "iteration_count": { "const": 10 },
     "run_timestamp_utc": { "type": "string", "format": "date-time" },
+    "mediastore_tracks": { "const": 2000 },
+    "precondition": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["songs_destination_visible", "representative_cached_song_visible", "refresh_settled"]
+    },
     "raw_result_path": { "type": "string" },
-    "trace_paths": { "type": "array", "items": { "type": "string" } },
-    "label": { "const": "INFRASTRUCTURE VALIDATION ONLY — NOT A PERFORMANCE BASELINE" }
+    "trace_paths": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "type": "string" }
+    },
+    "summary_path": { "type": "string" }
   }
 }

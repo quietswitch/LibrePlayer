@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED REGRESSION REFERENCE — NOT A UNIVERSAL PERFORMANCE CLAIM",
+  "reference_git_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+  "benchmark_harness_revision": "q1.1c-sha256:462af179b5cccd5f4a847711d86c69b8d09731fffe5586283f51a6a3f337aaea",
+  "measurement_hook_sha256": "d3367152a56b16ed13c49dad6fddd2c5c128f9a23d48057900ce5649a8b33a93",
+  "fixture": {
+    "profile": "MEDIUM",
+    "tracks": 2000,
+    "albums": 200,
+    "artists": 100,
+    "fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f"
+  },
+  "device": {
+    "avd": "LibrePlayer_API_28",
+    "android_version": "9",
+    "api_level": 28,
+    "abi": "x86_64"
+  },
+  "startup_mode": "COLD",
+  "compilation_mode": "Full",
+  "session_count": 3,
+  "iterations_per_session": 10,
+  "timeToInitialDisplayMs": {
+    "session_medians": [1071.1822000000002, 1086.80705, 1114.6195],
+    "median_of_session_medians": 1086.80705,
+    "session_range_percent": 3.9967812133717597
+  },
+  "timeToFullDisplayMs": {
+    "session_medians": [1230.3564, 1256.9358, 1294.96195],
+    "median_of_session_medians": 1256.9358,
+    "session_range_percent": 5.139924409822681
+  },
+  "memoryHeapSizeMaxKb": {
+    "authority": "TREND/REFERENCE ONLY — NO HARD THRESHOLD",
+    "session_medians": [14357.0, 14346.5, 14259.5],
+    "median_of_session_medians": 14346.5
+  },
+  "measurement_quality_notes": [
+    "Both startup session-median ranges are below the approximately 10% emulator noise diagnostic.",
+    "All raw values and traces remain in ignored generated results; session 3 iteration 1 retains a visible high timing outlier.",
+    "The values compare controlled builds on this AVD and must not be generalized to physical Android devices or user installations."
+  ]
+}

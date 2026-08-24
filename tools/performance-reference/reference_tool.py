@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -23,6 +25,13 @@ ALLOWED_OVERLAY_PATHS = {
     "settings.gradle.kts",
 }
 IGNORED_HARNESS_PATHS = {"STATUS.md"}
+STARTUP_HOOK_PATH = "app/src/main/java/com/libreplayer/navigation/LibrePlayerApp.kt"
+STARTUP_OVERLAY_HASHES = {
+    STARTUP_HOOK_PATH: "d3367152a56b16ed13c49dad6fddd2c5c128f9a23d48057900ce5649a8b33a93",
+    "benchmark/src/main/java/com/libreplayer/benchmark/CachedLibraryStartupBenchmark.kt":
+        "4af7a9b8f69f21a53f4a935246cc83404043220da5d1c758dc89671ef6392ebc",
+}
+STARTUP_OVERLAY_PATHS = set(STARTUP_OVERLAY_HASHES)
 
 
 class ReferenceError(RuntimeError):
@@ -57,6 +66,55 @@ def validate_harness_delta(paths: set[str]) -> None:
         raise ReferenceError(f"Unexpected Q1.1a paths: {sorted(unexpected)}")
     if missing:
         raise ReferenceError(f"Expected Q1.1a overlay paths missing: {sorted(missing)}")
+
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def validate_startup_overlay_paths(production_paths: set[str], hashes: dict[str, str]) -> None:
+    if production_paths != {STARTUP_HOOK_PATH}:
+        raise ReferenceError(
+            "Q1.1c production delta must contain only the approved fully-drawn hook: "
+            f"{sorted(production_paths)}"
+        )
+    if set(hashes) != STARTUP_OVERLAY_PATHS:
+        raise ReferenceError(f"Startup overlay paths differ from allowlist: {sorted(hashes)}")
+    mismatches = {
+        path: hashes[path]
+        for path, expected in STARTUP_OVERLAY_HASHES.items()
+        if hashes[path] != expected
+    }
+    if mismatches:
+        raise ReferenceError(f"Startup overlay content hash mismatch: {mismatches}")
+
+
+def validate_startup_overlay(repo: Path) -> dict[str, str]:
+    production_paths = changed_paths(repo, REFERENCE_COMMIT, "HEAD")
+    production_paths = {path for path in production_paths if path.startswith("app/src/main/")}
+    working_production = output_text(
+        git(repo, "diff", "--name-only", REFERENCE_COMMIT, "--", "app/src/main")
+    )
+    production_paths.update(line for line in working_production.splitlines() if line)
+    untracked_production = output_text(
+        git(repo, "ls-files", "--others", "--exclude-standard", "--", "app/src/main")
+    )
+    production_paths.update(line for line in untracked_production.splitlines() if line)
+    hashes = {
+        path: file_sha256(repo / path)
+        for path in STARTUP_OVERLAY_PATHS
+        if (repo / path).is_file()
+    }
+    validate_startup_overlay_paths(production_paths, hashes)
+    return hashes
+
+
+def startup_harness_revision(hashes: dict[str, str]) -> str:
+    digest = hashlib.sha256()
+    digest.update(f"foundation:{HARNESS_COMMIT}\n".encode())
+    for path in sorted(hashes):
+        digest.update(f"{path}:{hashes[path]}\n".encode())
+    return f"q1.1c-sha256:{digest.hexdigest()}"
 
 
 def ensure_external_worktree(repo: Path, worktree: Path) -> None:
@@ -94,26 +152,38 @@ def prepare(repo: Path, worktree: Path) -> dict:
     verify_reference_identity(repo)
     delta = changed_paths(repo, REFERENCE_COMMIT, HARNESS_COMMIT)
     validate_harness_delta(delta)
+    startup_hashes = validate_startup_overlay(repo)
     worktree.parent.mkdir(parents=True, exist_ok=True)
     git(repo, "worktree", "add", "--detach", str(worktree), REFERENCE_COMMIT, capture=False)
     try:
         patch = git(repo, "diff", "--binary", REFERENCE_COMMIT, HARNESS_COMMIT, "--", *sorted(ALLOWED_OVERLAY_PATHS)).stdout
         git(worktree, "apply", "--whitespace=nowarn", "-", input_bytes=patch)
+        for path in sorted(STARTUP_OVERLAY_PATHS):
+            destination = worktree / path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(repo / path, destination)
         applied = status_paths(worktree)
-        if applied != ALLOWED_OVERLAY_PATHS:
+        expected_applied = ALLOWED_OVERLAY_PATHS | STARTUP_OVERLAY_PATHS
+        if applied != expected_applied:
             raise ReferenceError(f"Applied overlay differs from allowlist: {sorted(applied)}")
-        if output_text(git(worktree, "diff", "--name-only", "--", "app/src/main")):
-            raise ReferenceError("Reference overlay changed app/src/main")
+        production_applied = {
+            path for path in applied if path.startswith("app/src/main/")
+        }
+        if production_applied != {STARTUP_HOOK_PATH}:
+            raise ReferenceError(f"Unexpected reference production overlay: {sorted(production_applied)}")
         head = output_text(git(worktree, "rev-parse", "HEAD"))
         if head != REFERENCE_COMMIT:
             raise ReferenceError(f"Detached reference HEAD changed: {head}")
         return {
             "reference_git_commit": REFERENCE_COMMIT,
-            "benchmark_harness_revision": HARNESS_COMMIT,
+            "benchmark_foundation_commit": HARNESS_COMMIT,
+            "benchmark_harness_revision": startup_harness_revision(startup_hashes),
+            "measurement_hook_sha256": startup_hashes[STARTUP_HOOK_PATH],
             "worktree": str(worktree),
             "detached": True,
             "overlay_paths": sorted(applied),
-            "production_source_changed": False,
+            "production_source_changed": True,
+            "production_overlay_paths": [STARTUP_HOOK_PATH],
         }
     except Exception:
         git(repo, "worktree", "remove", "--force", str(worktree), capture=False)
@@ -135,7 +205,7 @@ def cleanup(repo: Path, worktree: Path, gradle_user_home: Path | None = None) ->
         raise ReferenceError(f"Path is not a registered Git worktree: {worktree}")
     if output_text(git(worktree, "rev-parse", "HEAD")) != REFERENCE_COMMIT:
         raise ReferenceError("Refusing to remove worktree at an unexpected commit")
-    unexpected = status_paths(worktree) - ALLOWED_OVERLAY_PATHS
+    unexpected = status_paths(worktree) - ALLOWED_OVERLAY_PATHS - STARTUP_OVERLAY_PATHS
     if unexpected:
         raise ReferenceError(f"Refusing to remove worktree with unexpected files: {sorted(unexpected)}")
     if any((worktree / path).exists() for path in ("app/build", "benchmark/build", "build")):

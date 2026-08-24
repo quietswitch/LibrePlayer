@@ -26,6 +26,31 @@ class ReferenceToolTests(unittest.TestCase):
         with self.assertRaises(reference_tool.ReferenceError):
             reference_tool.validate_harness_delta(paths)
 
+    def test_exact_startup_overlay_is_accepted(self) -> None:
+        reference_tool.validate_startup_overlay_paths(
+            {reference_tool.STARTUP_HOOK_PATH},
+            dict(reference_tool.STARTUP_OVERLAY_HASHES),
+        )
+
+    def test_unrelated_production_source_is_rejected_for_startup(self) -> None:
+        with self.assertRaises(reference_tool.ReferenceError):
+            reference_tool.validate_startup_overlay_paths(
+                {
+                    reference_tool.STARTUP_HOOK_PATH,
+                    "app/src/main/java/com/libreplayer/data/repository/LibraryRepository.kt",
+                },
+                dict(reference_tool.STARTUP_OVERLAY_HASHES),
+            )
+
+    def test_modified_startup_hook_is_rejected(self) -> None:
+        hashes = dict(reference_tool.STARTUP_OVERLAY_HASHES)
+        hashes[reference_tool.STARTUP_HOOK_PATH] = "0" * 64
+        with self.assertRaises(reference_tool.ReferenceError):
+            reference_tool.validate_startup_overlay_paths(
+                {reference_tool.STARTUP_HOOK_PATH},
+                hashes,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

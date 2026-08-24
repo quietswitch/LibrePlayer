@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -33,6 +34,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.libreplayer.app.AppContainer
 import com.libreplayer.data.repository.SmartPlaylistType
+import com.libreplayer.data.repository.LibraryScreenState
 import com.libreplayer.ui.components.MiniPlayer
 import com.libreplayer.ui.screens.AlbumDetailScreen
 import com.libreplayer.ui.screens.AudioDetailsRoute
@@ -61,6 +63,10 @@ fun LibrePlayerApp(appContainer: AppContainer) {
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
+
+    ReportDrawnWhen {
+        isLibraryStartupReadyForFullyDrawn(libraryState)
+    }
 
     LibrePlayerTheme(themeMode = settings.themeMode) {
         Scaffold(
@@ -298,6 +304,12 @@ fun LibrePlayerApp(appContainer: AppContainer) {
         }
     }
 }
+
+internal fun isLibraryStartupReadyForFullyDrawn(state: LibraryScreenState): Boolean =
+    state.songs.isNotEmpty() ||
+        state.permissionRequired ||
+        state.errorMessage != null ||
+        !state.isLoading
 
 @Composable
 private fun BottomBarContent(
