@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.libreplayer.BuildConfig
 import com.libreplayer.app.LibrePlayerApplication
 import com.libreplayer.app.MainActivity
 import com.libreplayer.media.playback.PlaybackSnapshot
@@ -70,7 +71,12 @@ class PlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
-            .also { it.addListener(playerListener) }
+            .also {
+                it.addListener(playerListener)
+                if (BuildConfig.DEBUG) {
+                    it.addAnalyticsListener(PlaybackAudioDiagnostics)
+                }
+            }
 
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivity())
@@ -91,6 +97,9 @@ class PlaybackService : MediaSessionService() {
         mediaSession?.release()
         mediaSession = null
         player.removeListener(playerListener)
+        if (BuildConfig.DEBUG) {
+            player.removeAnalyticsListener(PlaybackAudioDiagnostics)
+        }
         player.release()
         serviceScope.cancel()
         super.onDestroy()
