@@ -1,0 +1,14 @@
+LibrePlayer performance-fixture audio template
+
+This is an original synthetic 440 Hz tone generated for LibrePlayer. It contains no sampled or copyrighted source recording and is distributed under the repository's license.
+
+Authoritative committed file: audio-template.mp3
+SHA-256: 51aee70ceb630c71c63cdf6a26527055418b6b86c5e6c2eb1438bde2cb04a726
+Decoded duration: 31.176 seconds
+Encoding: MP3, 8 kHz, mono, 8 kbit/s
+
+Creation command (ffmpeg 8.1):
+
+ffmpeg -f lavfi -i "sine=frequency=440:sample_rate=8000:duration=31" -ac 1 -codec:a libmp3lame -b:a 8k -write_xing 0 -id3v2_version 0 -map_metadata -1 -fflags +bitexact -flags:a +bitexact audio-template.mp3
+
+Fixture generation does not invoke ffmpeg. It prepends deterministic ID3 metadata to these fixed MPEG audio frames. Acceptance validation uses ffprobe to prove representative generated files remain decodable and at least 30 seconds long.

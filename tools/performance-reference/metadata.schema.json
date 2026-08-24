@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://libreplayer.example/schemas/performance-run-metadata-v1.json",
+  "title": "LibrePlayer performance comparison run metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "reference_git_commit",
+    "development_git_commit",
+    "benchmark_harness_revision",
+    "dataset_profile",
+    "dataset_fingerprint_sha256",
+    "device",
+    "toolchain",
+    "compilation_mode",
+    "iteration_count",
+    "run_timestamp_utc",
+    "raw_result_path",
+    "trace_paths"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "reference_git_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "development_git_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "benchmark_harness_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "dataset_profile": { "enum": ["EMPTY", "SMALL", "MEDIUM", "LARGE", "STRESS"] },
+    "dataset_fingerprint_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_name", "serial", "android_version", "api_level", "abi"],
+      "properties": {
+        "authority_name": { "type": "string" },
+        "serial": { "type": "string" },
+        "android_version": { "type": "string" },
+        "api_level": { "type": "integer" },
+        "abi": { "type": "string" }
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["android_gradle_plugin", "benchmark_library", "compile_sdk", "build_tools"],
+      "properties": {
+        "android_gradle_plugin": { "type": "string" },
+        "benchmark_library": { "type": "string" },
+        "compile_sdk": { "type": "integer" },
+        "build_tools": { "type": "string" }
+      }
+    },
+    "compilation_mode": { "type": "string" },
+    "iteration_count": { "type": "integer", "minimum": 1 },
+    "run_timestamp_utc": { "type": "string", "format": "date-time" },
+    "raw_result_path": { "type": "string" },
+    "trace_paths": { "type": "array", "items": { "type": "string" } },
+    "label": { "const": "INFRASTRUCTURE VALIDATION ONLY — NOT A PERFORMANCE BASELINE" }
+  }
+}

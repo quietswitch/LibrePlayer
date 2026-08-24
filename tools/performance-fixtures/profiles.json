@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "seed": 104,
+  "audio_duration_seconds": 31,
+  "profiles": {
+    "EMPTY": { "tracks": 0, "albums": 0, "artists": 0 },
+    "SMALL": { "tracks": 100, "albums": 10, "artists": 10 },
+    "MEDIUM": { "tracks": 2000, "albums": 200, "artists": 100 },
+    "LARGE": { "tracks": 10000, "albums": 1000, "artists": 500 },
+    "STRESS": { "tracks": 50000, "albums": 5000, "artists": 2000 }
+  }
+}

@@ -53,3 +53,13 @@ Thumbs.db
 
 # Kotlin compiler working data
 .kotlin/
+
+# Python tooling caches
+__pycache__/
+*.py[cod]
+
+# Performance-authority generated data
+/tools/performance-fixtures/generated/
+/tools/performance-reference/worktrees/
+/tools/performance-reference/results/
+/performance-results/
