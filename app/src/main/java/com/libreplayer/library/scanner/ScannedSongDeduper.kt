@@ -65,18 +65,28 @@ internal object ScannedSongDeduper {
         return if (first.dateModifiedEpochSeconds >= second.dateModifiedEpochSeconds) first else second
     }
 
-    private fun canonicalPathKey(song: ScannedSong): String? =
+    internal fun canonicalPathKey(song: ScannedSong): String? =
         when (song.sourceType) {
             SongSourceType.MEDIA_STORE -> song.relativePath
                 ?.takeIf(String::isNotBlank)
                 ?.let { buildPathKey(it, song.displayName) }
 
-            SongSourceType.DOCUMENT -> {
-                val documentPath = extractDocumentPath(song.contentUri)
-                    ?: song.relativePath?.takeIf(String::isNotBlank)
-                documentPath?.let { buildPathKey(it, song.displayName) }
-            }
+            SongSourceType.DOCUMENT -> canonicalDocumentPathKey(
+                contentUri = song.contentUri,
+                relativePath = song.relativePath,
+                displayName = song.displayName,
+            )
         }
+
+    internal fun canonicalDocumentPathKey(
+        contentUri: String,
+        relativePath: String?,
+        displayName: String,
+    ): String? {
+        val documentPath = extractDocumentPath(contentUri)
+            ?: relativePath?.takeIf(String::isNotBlank)
+        return documentPath?.let { buildPathKey(it, displayName) }
+    }
 
     private fun buildPathKey(
         rawPath: String,

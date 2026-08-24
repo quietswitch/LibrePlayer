@@ -14,6 +14,7 @@ import com.libreplayer.data.repository.SongSourceType
 import com.libreplayer.library.metadata.AudioMetadataReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 data class ScannedSong(
     val id: String,
@@ -90,7 +91,8 @@ class DeviceLibraryScanner(
                 mediaStoreScan.checkpointInvalidated
             val documentScan = scanImportedRoots(
                 importedRoots = importedRoots,
-                cachedSongs = cachedDocumentSongs,
+                cachedDocumentSongs = cachedDocumentSongs,
+                reusableCachedSongs = cachedSongs,
                 forceFull = forceFullDocuments,
             )
             val mediaStoreSongs = if (mediaStoreScan.permissionRequired) {
@@ -327,30 +329,45 @@ class DeviceLibraryScanner(
 
     private fun scanImportedRoots(
         importedRoots: List<String>,
-        cachedSongs: List<ScannedSong>,
+        cachedDocumentSongs: List<ScannedSong>,
+        reusableCachedSongs: List<ScannedSong>,
         forceFull: Boolean,
     ): DocumentScan {
         val destination = mutableListOf<ScannedSong>()
-        val cachedById = cachedSongs.associateBy(ScannedSong::id)
+        val cachedById = cachedDocumentSongs.associateBy(ScannedSong::id)
+        val cachedByCanonicalPath = reusableCachedSongs.mapNotNull { song ->
+            ScannedSongDeduper.canonicalPathKey(song)?.let { path -> path to song }
+        }.toMap()
         val counters = DocumentScanCounters()
         var isComplete = true
         importedRoots.forEach { rawUri ->
             val uri = Uri.parse(rawUri)
-            val root = runCatching {
-                DocumentFile.fromTreeUri(context, uri)
-                    ?: DocumentFile.fromSingleUri(context, uri)
-            }.getOrNull()
-            if (root == null) {
-                isComplete = false
-                destination += cachedSongs.forRoot(uri)
-                return@forEach
-            }
             val walkSucceeded = runCatching {
-                walkDocument(root, destination, cachedById, forceFull, counters)
+                if (DocumentsContract.isTreeUri(uri)) {
+                    walkDocumentTree(
+                        treeUri = uri,
+                        destination = destination,
+                        cachedById = cachedById,
+                        cachedByCanonicalPath = cachedByCanonicalPath,
+                        forceFull = forceFull,
+                        counters = counters,
+                    )
+                } else {
+                    val root = DocumentFile.fromSingleUri(context, uri)
+                        ?: throw IOException("Unable to open imported document root.")
+                    walkDocument(
+                        file = root,
+                        destination = destination,
+                        cachedById = cachedById,
+                        cachedByCanonicalPath = cachedByCanonicalPath,
+                        forceFull = forceFull,
+                        counters = counters,
+                    )
+                }
             }.isSuccess
             if (!walkSucceeded) {
                 isComplete = false
-                destination += cachedSongs.forRoot(uri)
+                destination += cachedDocumentSongs.forRoot(uri)
             }
         }
         return DocumentScan(
@@ -359,25 +376,118 @@ class DeviceLibraryScanner(
             metadataReads = counters.metadataReads,
             metadataFailures = counters.metadataFailures,
             cachedSongsReused = counters.cachedSongsReused,
-            isComplete = isComplete && counters.isComplete,
+            isComplete = isComplete,
         )
+    }
+
+    private fun walkDocumentTree(
+        treeUri: Uri,
+        destination: MutableList<ScannedSong>,
+        cachedById: Map<String, ScannedSong>,
+        cachedByCanonicalPath: Map<String, ScannedSong>,
+        forceFull: Boolean,
+        counters: DocumentScanCounters,
+    ) {
+        val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+        walkDocumentTreeChildren(
+            treeUri = treeUri,
+            parentDocumentId = rootDocumentId,
+            destination = destination,
+            cachedById = cachedById,
+            cachedByCanonicalPath = cachedByCanonicalPath,
+            forceFull = forceFull,
+            counters = counters,
+        )
+    }
+
+    private fun walkDocumentTreeChildren(
+        treeUri: Uri,
+        parentDocumentId: String,
+        destination: MutableList<ScannedSong>,
+        cachedById: Map<String, ScannedSong>,
+        cachedByCanonicalPath: Map<String, ScannedSong>,
+        forceFull: Boolean,
+        counters: DocumentScanCounters,
+    ) {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            parentDocumentId,
+        )
+        val cursor = context.contentResolver.query(
+            childrenUri,
+            DOCUMENT_PROJECTION,
+            null,
+            null,
+            null,
+        ) ?: throw IOException("Document provider returned no children cursor.")
+        cursor.use {
+            val idColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val modifiedColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+            while (it.moveToNext()) {
+                val documentId = it.getString(idColumn)
+                val displayName = it.getString(nameColumn).orEmpty()
+                val mimeType = it.getString(mimeColumn)
+                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    walkDocumentTreeChildren(
+                        treeUri = treeUri,
+                        parentDocumentId = documentId,
+                        destination = destination,
+                        cachedById = cachedById,
+                        cachedByCanonicalPath = cachedByCanonicalPath,
+                        forceFull = forceFull,
+                        counters = counters,
+                    )
+                } else if (isAudioCandidate(mimeType, displayName)) {
+                    val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
+                    processDocument(
+                        uri = documentUri,
+                        descriptor = DocumentDescriptor(
+                            id = "document:$documentUri",
+                            contentUri = documentUri.toString(),
+                            displayName = displayName.ifBlank { documentId.substringAfterLast('/') },
+                            relativePath = documentUri.path,
+                            mimeType = mimeType,
+                            dateModifiedEpochSeconds = if (it.isNull(modifiedColumn)) {
+                                0L
+                            } else {
+                                (it.getLong(modifiedColumn) / 1000L).coerceAtLeast(0L)
+                            },
+                        ),
+                        destination = destination,
+                        cachedById = cachedById,
+                        cachedByCanonicalPath = cachedByCanonicalPath,
+                        forceFull = forceFull,
+                        counters = counters,
+                    )
+                }
+            }
+        }
     }
 
     private fun walkDocument(
         file: DocumentFile,
         destination: MutableList<ScannedSong>,
         cachedById: Map<String, ScannedSong>,
+        cachedByCanonicalPath: Map<String, ScannedSong>,
         forceFull: Boolean,
         counters: DocumentScanCounters,
     ) {
         if (file.isDirectory) {
             file.listFiles().forEach { child ->
-                walkDocument(child, destination, cachedById, forceFull, counters)
+                walkDocument(
+                    file = child,
+                    destination = destination,
+                    cachedById = cachedById,
+                    cachedByCanonicalPath = cachedByCanonicalPath,
+                    forceFull = forceFull,
+                    counters = counters,
+                )
             }
             return
         }
         if (!file.isFile || !file.isAudioCandidate()) return
-        counters.filesVisited++
 
         val uri = file.uri
         val modifiedSeconds = (file.lastModified() / 1000L).coerceAtLeast(0L)
@@ -389,9 +499,41 @@ class DeviceLibraryScanner(
             mimeType = file.type,
             dateModifiedEpochSeconds = modifiedSeconds,
         )
-        val cached = cachedById[descriptor.id]
-        if (!forceFull && cached != null && canReuseCachedDocument(cached, descriptor)) {
-            destination += cached
+        processDocument(
+            uri = uri,
+            descriptor = descriptor,
+            destination = destination,
+            cachedById = cachedById,
+            cachedByCanonicalPath = cachedByCanonicalPath,
+            forceFull = forceFull,
+            counters = counters,
+        )
+    }
+
+    private fun processDocument(
+        uri: Uri,
+        descriptor: DocumentDescriptor,
+        destination: MutableList<ScannedSong>,
+        cachedById: Map<String, ScannedSong>,
+        cachedByCanonicalPath: Map<String, ScannedSong>,
+        forceFull: Boolean,
+        counters: DocumentScanCounters,
+    ) {
+        counters.filesVisited++
+        val cachedByDocumentId = cachedById[descriptor.id]
+        val canonicalPath = ScannedSongDeduper.canonicalDocumentPathKey(
+            contentUri = descriptor.contentUri,
+            relativePath = descriptor.relativePath,
+            displayName = descriptor.displayName,
+        )
+        val cachedByPath = canonicalPath?.let(cachedByCanonicalPath::get)
+        val cached = cachedByDocumentId ?: cachedByPath
+        val matchedByCanonicalPath = cachedByDocumentId == null && cachedByPath != null
+        if (
+            !forceFull && cached != null &&
+            canReuseCachedDocument(cached, descriptor, matchedByCanonicalPath)
+        ) {
+            destination += cached.asDocumentSong(descriptor)
             counters.cachedSongsReused++
             return
         }
@@ -399,10 +541,9 @@ class DeviceLibraryScanner(
         counters.metadataReads++
         val metadata = metadataReader.read(uri)
         if (metadata == null) {
-            counters.isComplete = false
             counters.metadataFailures++
             if (cached != null) {
-                destination += cached
+                destination += cached.asDocumentSong(descriptor)
                 counters.cachedSongsReused++
             }
             return
@@ -420,8 +561,8 @@ class DeviceLibraryScanner(
             trackNumber = metadata.trackNumber,
             discNumber = metadata.discNumber,
             year = metadata.year,
-            dateAddedEpochSeconds = modifiedSeconds,
-            dateModifiedEpochSeconds = modifiedSeconds,
+            dateAddedEpochSeconds = descriptor.dateModifiedEpochSeconds,
+            dateModifiedEpochSeconds = descriptor.dateModifiedEpochSeconds,
             displayName = descriptor.displayName,
             relativePath = descriptor.relativePath,
             mimeType = descriptor.mimeType,
@@ -430,8 +571,12 @@ class DeviceLibraryScanner(
     }
 
     private fun DocumentFile.isAudioCandidate(): Boolean {
-        val type = type.orEmpty().lowercase()
-        val name = name.orEmpty().lowercase()
+        return isAudioCandidate(type, name.orEmpty())
+    }
+
+    private fun isAudioCandidate(mimeType: String?, displayName: String): Boolean {
+        val type = mimeType.orEmpty().lowercase()
+        val name = displayName.lowercase()
         return type.startsWith("audio/") || SUPPORTED_EXTENSIONS.any(name::endsWith)
     }
 
@@ -454,6 +599,12 @@ class DeviceLibraryScanner(
     }
 
     private companion object {
+        val DOCUMENT_PROJECTION = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+        )
         val SUPPORTED_EXTENSIONS = listOf(
             ".mp3",
             ".flac",
@@ -491,7 +642,6 @@ private class DocumentScanCounters(
     var metadataReads: Int = 0,
     var cachedSongsReused: Int = 0,
     var metadataFailures: Int = 0,
-    var isComplete: Boolean = true,
 )
 
 internal data class DocumentDescriptor(
@@ -506,13 +656,32 @@ internal data class DocumentDescriptor(
 internal fun canReuseCachedDocument(
     cached: ScannedSong,
     descriptor: DocumentDescriptor,
+    matchedByCanonicalPath: Boolean = false,
 ): Boolean =
     descriptor.dateModifiedEpochSeconds > 0L &&
-        cached.contentUri == descriptor.contentUri &&
         cached.displayName == descriptor.displayName &&
-        cached.relativePath == descriptor.relativePath &&
-        cached.mimeType == descriptor.mimeType &&
-        cached.dateModifiedEpochSeconds == descriptor.dateModifiedEpochSeconds
+        cached.dateModifiedEpochSeconds == descriptor.dateModifiedEpochSeconds &&
+        (
+            matchedByCanonicalPath ||
+                (
+                    cached.contentUri == descriptor.contentUri &&
+                        cached.relativePath == descriptor.relativePath &&
+                        cached.mimeType == descriptor.mimeType
+                )
+            )
+
+internal fun ScannedSong.asDocumentSong(descriptor: DocumentDescriptor): ScannedSong =
+    copy(
+        id = descriptor.id,
+        sourceType = SongSourceType.DOCUMENT,
+        contentUri = descriptor.contentUri,
+        dateAddedEpochSeconds = descriptor.dateModifiedEpochSeconds,
+        dateModifiedEpochSeconds = descriptor.dateModifiedEpochSeconds,
+        displayName = descriptor.displayName,
+        relativePath = descriptor.relativePath,
+        mimeType = descriptor.mimeType,
+        artworkUri = descriptor.contentUri,
+    )
 
 internal fun mergeIncrementalMediaStoreSongs(
     cachedSongs: List<ScannedSong>,

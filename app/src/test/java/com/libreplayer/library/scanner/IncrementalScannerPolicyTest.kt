@@ -120,6 +120,51 @@ class IncrementalScannerPolicyTest {
 
         assertThat(canReuseCachedDocument(cached, descriptor)).isFalse()
     }
+
+    @Test
+    fun `SAF duplicate reuses matching cached MediaStore metadata`() {
+        val cachedMediaStoreSong = song(
+            id = "media:42",
+            title = "Cached title",
+            modified = 123L,
+        ).copy(
+            contentUri = "content://media/external/audio/media/42",
+            displayName = "song.flac",
+            relativePath = "Music/Artist/Album/",
+            mimeType = "audio/flac",
+        )
+        val descriptor = DocumentDescriptor(
+            id = "document:content://com.android.externalstorage.documents/tree/primary%3AMusic/" +
+                "document/primary%3AMusic%2FArtist%2FAlbum%2Fsong.flac",
+            contentUri = "content://com.android.externalstorage.documents/tree/primary%3AMusic/" +
+                "document/primary%3AMusic%2FArtist%2FAlbum%2Fsong.flac",
+            displayName = "song.flac",
+            relativePath = "/tree/primary:Music/document/primary:Music/Artist/Album/song.flac",
+            mimeType = "audio/flac",
+            dateModifiedEpochSeconds = 123L,
+        )
+
+        val mediaStorePath = ScannedSongDeduper.canonicalPathKey(cachedMediaStoreSong)
+        val documentPath = ScannedSongDeduper.canonicalDocumentPathKey(
+            contentUri = descriptor.contentUri,
+            relativePath = descriptor.relativePath,
+            displayName = descriptor.displayName,
+        )
+        val reused = cachedMediaStoreSong.asDocumentSong(descriptor)
+
+        assertThat(documentPath).isEqualTo(mediaStorePath)
+        assertThat(
+            canReuseCachedDocument(
+                cached = cachedMediaStoreSong,
+                descriptor = descriptor,
+                matchedByCanonicalPath = true,
+            ),
+        ).isTrue()
+        assertThat(reused.sourceType).isEqualTo(SongSourceType.DOCUMENT)
+        assertThat(reused.id).isEqualTo(descriptor.id)
+        assertThat(reused.contentUri).isEqualTo(descriptor.contentUri)
+        assertThat(reused.title).isEqualTo("Cached title")
+    }
 }
 
 private fun song(
