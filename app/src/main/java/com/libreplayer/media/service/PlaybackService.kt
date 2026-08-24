@@ -61,7 +61,11 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        player = ExoPlayer.Builder(this)
+        val playerBuilder = ExoPlayer.Builder(this)
+        if (BuildConfig.DEBUG) {
+            playerBuilder.setRenderersFactory(PlaybackAudioDiagnosticRenderersFactory(this))
+        }
+        player = playerBuilder
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)

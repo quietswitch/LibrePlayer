@@ -49,6 +49,18 @@ internal object PlaybackAudioDiagnostics : AnalyticsListener {
         )
     }
 
+    override fun onAudioTrackReleased(
+        eventTime: AnalyticsListener.EventTime,
+        audioTrackConfig: AudioSink.AudioTrackConfig,
+    ) {
+        Log.d(
+            TAG,
+            "AudioTrack released: rateHz=${audioTrackConfig.sampleRate} " +
+                "encoding=${audioTrackConfig.encoding} channelConfig=${audioTrackConfig.channelConfig} " +
+                "offload=${audioTrackConfig.offload}",
+        )
+    }
+
     override fun onAudioSessionIdChanged(
         eventTime: AnalyticsListener.EventTime,
         audioSessionId: Int,
@@ -92,5 +104,19 @@ internal object PlaybackAudioDiagnostics : AnalyticsListener {
         audioSinkError: Exception,
     ) {
         Log.e(TAG, "audio sink error", audioSinkError)
+    }
+
+    fun onSinkInputFormat(
+        format: Format,
+        specifiedBufferSize: Int,
+        outputChannels: IntArray?,
+    ) {
+        Log.d(
+            TAG,
+            "sink input: sample=${format.sampleMimeType} rateHz=${format.sampleRate} " +
+                "channels=${format.channelCount} pcmEncoding=${format.pcmEncoding} " +
+                "encoderDelay=${format.encoderDelay} encoderPadding=${format.encoderPadding} " +
+                "specifiedBufferBytes=$specifiedBufferSize outputChannels=${outputChannels?.contentToString()}",
+        )
     }
 }
