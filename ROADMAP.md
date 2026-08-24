@@ -4,7 +4,7 @@
 
 - Add explicit Room migrations before any further schema changes
 - Add focused instrumentation tests for permission, playback restore, and core library browsing
-- Tighten release readiness: smoke-test release build, revisit minification, and document upgrade expectations
+- Maintain compatibility smoke coverage across API 26 and current Android releases
 
 ## Later
 
@@ -12,6 +12,7 @@
 - Better queue editing in the queue screen
 - More metadata cleanup and artwork caching polish
 - Optional per-tab sort preferences
+- Revisit release minification if application size or distribution requirements make it worthwhile
 
 ## Do Not Do Now
 

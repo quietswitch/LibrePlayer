@@ -35,6 +35,18 @@ key.properties
 *.key
 keystore.properties
 
+# Local credentials and environment
+.env
+.env.*
+!.env.example
+
+# Local diagnostics and device captures
+*.log
+*.hprof
+*.trace
+bugreport-*
+device-artifacts/
+
 # Operating-system files
 .DS_Store
 Thumbs.db

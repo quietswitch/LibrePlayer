@@ -12,8 +12,9 @@ Android
 
 ## Current Implemented Features
 
-- Local library scan from `MediaStore`
-- Optional folder import through the Storage Access Framework
+- Incremental local library synchronization through `MediaStore`
+- Optional folder import and synchronization through the Storage Access Framework
+- Incremental rescan for additions, changes, and removals, with an on-demand full rebuild
 - Songs, albums, artists, playlists, favorites, and recently played
 - Global search across songs, albums, and artists
 - Queue playback with shuffle and repeat

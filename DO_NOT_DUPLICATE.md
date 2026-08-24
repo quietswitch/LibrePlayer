@@ -2,8 +2,8 @@
 
 ## Already Implemented Here
 
-- Local library scan from `MediaStore`
-- Optional SAF folder import
+- Incremental local library synchronization from `MediaStore`
+- Optional SAF folder import and synchronization
 - Songs, albums, artists, playlists, favorites, and recently played
 - Search
 - Queue playback with shuffle/repeat and background media controls
