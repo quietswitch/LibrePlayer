@@ -3,6 +3,8 @@ package com.libreplayer.benchmark
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.MacrobenchmarkScope
+import androidx.benchmark.macro.StartupMode
+import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
@@ -23,7 +25,7 @@ class LibraryUiBenchmark {
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = CompilationMode.Full(),
-        iterations = ITERATIONS,
+        iterations = SCROLL_ITERATIONS,
         setupBlock = {
             prepareSongsAtTop()
         },
@@ -40,7 +42,7 @@ class LibraryUiBenchmark {
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = CompilationMode.Full(),
-        iterations = ITERATIONS,
+        iterations = SCROLL_ITERATIONS,
         setupBlock = {
             prepareSongsAtTop()
             requireObject(By.text(ALBUMS_TITLE), "Albums navigation item").click()
@@ -63,7 +65,7 @@ class LibraryUiBenchmark {
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = CompilationMode.Full(),
-        iterations = ITERATIONS,
+        iterations = SEARCH_ITERATIONS,
         setupBlock = {
             prepareSongsAtTop()
             requireObject(By.desc(SEARCH_DESCRIPTION), "Search library action").click()
@@ -87,9 +89,10 @@ class LibraryUiBenchmark {
     @Test
     fun backgroundForegroundReturn() = benchmarkRule.measureRepeated(
         packageName = TARGET_PACKAGE,
-        metrics = listOf(FrameTimingMetric()),
+        metrics = listOf(FrameTimingMetric(), StartupTimingMetric()),
         compilationMode = CompilationMode.Full(),
-        iterations = ITERATIONS,
+        iterations = RESUME_ITERATIONS,
+        startupMode = StartupMode.HOT,
         setupBlock = {
             prepareSongsAtTop()
         },
@@ -135,7 +138,9 @@ class LibraryUiBenchmark {
 
     private companion object {
         const val TARGET_PACKAGE = "com.libreplayer"
-        const val ITERATIONS = 5
+        const val SCROLL_ITERATIONS = 5
+        const val SEARCH_ITERATIONS = 15
+        const val RESUME_ITERATIONS = 20
         const val SCROLL_GESTURES = 6
         const val SWIPE_STEPS = 100
         const val CONTENT_TIMEOUT_MS = 15_000L

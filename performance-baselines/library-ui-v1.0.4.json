@@ -1,10 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "authority": "CONTROLLED REGRESSION REFERENCE — NOT A UNIVERSAL DEVICE PERFORMANCE CLAIM",
   "reference_git_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
-  "benchmark_harness_revision": "q1.1d-sha256:af5602916b3493c0ab09ce3dabaa777a9a643a167810138e02b820638fa71a1d",
-  "benchmark_class_sha256": "f8f6012a32d051231b81901d8f00e65d1d6bcb36b73db733773ce55f2d330e0d",
-  "orchestration_script_sha256": "315edc0cf000fdbe5dc90ed04e4eba75b08e69d21d96401b97200ade21298332",
+  "accepted_scroll_harness_revision": "q1.1d-sha256:af5602916b3493c0ab09ce3dabaa777a9a643a167810138e02b820638fa71a1d",
+  "closeout_harness_revision": "q1.1d-sha256:b922993b8fe04c3e6a285533e04c26ae1b5607cc92e4b947d007b3c988f319ac",
+  "closeout_benchmark_class_sha256": "1a0e4d4cfff586986857ac0e6ab4919fce9ca2631118b5f499bfd0854c6096ee",
+  "closeout_orchestration_script_sha256": "414a5786858c18cbd51cc2e8f4b13c80089fb2c15e0960418e660242724e25d0",
   "fixture": {
     "profile": "MEDIUM",
     "logical_tracks": 2000,
@@ -34,17 +35,24 @@
     "snapshot_policy": "no snapshot"
   },
   "compilation_mode": "Full",
-  "metric": "FrameTimingMetric",
+  "metrics": ["FrameTimingMetric", "StartupTimingMetric for hot resume only"],
   "session_count": 3,
-  "iterations_per_journey_per_session": 5,
+  "journey_iteration_counts": {
+    "songs": 5,
+    "albums": 5,
+    "search": 15,
+    "resume": 20
+  },
   "session_order": [
     "reference then development",
     "development then reference",
     "reference then development"
   ],
-  "aggregation": "Each session value is the median of its five per-iteration percentiles; authority value is the median of three session values.",
+  "aggregation": "Frame session values are medians of per-iteration percentiles; hot-resume TTID session values are medians of raw iterations. Authority values are medians of three session medians.",
   "journeys": {
     "songs": {
+      "classification": "NUMERIC REGRESSION AUTHORITY",
+      "harness_revision": "q1.1d-sha256:af5602916b3493c0ab09ce3dabaa777a9a643a167810138e02b820638fa71a1d",
       "definition": "Cached settled Songs at top; six normalized 78%-to-31% downward swipes; verify first unique path leaves viewport and Songs remains visible.",
       "cache_state": "Cached database; newly launched process; refresh settled.",
       "frameDurationCpuMs": {
@@ -61,6 +69,8 @@
       }
     },
     "albums": {
+      "classification": "NUMERIC REGRESSION AUTHORITY",
+      "harness_revision": "q1.1d-sha256:af5602916b3493c0ab09ce3dabaa777a9a643a167810138e02b820638fa71a1d",
       "definition": "Cold app artwork cache; navigate to Albums outside measurement; six normalized downward swipes; verify first album leaves viewport and later fixture albums remain.",
       "cache_state": "LibrePlayer in-memory artwork cache cold per iteration; OS/file caches unspecified.",
       "frameDurationCpuMs": {
@@ -77,47 +87,63 @@
       }
     },
     "search": {
+      "classification": "CORRECTNESS + TRACE AUTHORITY",
+      "harness_revision": "q1.1d-sha256:b922993b8fe04c3e6a285533e04c26ae1b5607cc92e4b947d007b3c988f319ac",
       "definition": "Blank loaded Search; progressively set D, Du, Dup, Dupl, Duplicate; verify Duplicate Display Metadata after every state.",
       "cache_state": "Loaded stable library; blank query at iteration start.",
-      "frameDurationCpuMs": {
-        "P50": {"session_medians": [4.9700665, 4.144982, 5.1265325], "median_of_session_medians": 4.9700665, "session_range_percent": 19.7492},
-        "P90": {"session_medians": [12.7853175, 17.9437622, 9.510651], "median_of_session_medians": 12.7853175, "session_range_percent": 65.9593},
-        "P95": {"session_medians": [12.97207025, 18.8161826, 11.2580185], "median_of_session_medians": 12.97207025, "session_range_percent": 58.2649},
-        "P99": {"session_medians": [13.12147245, 19.51411892, 12.40305835], "median_of_session_medians": 13.12147245, "session_range_percent": 54.1941}
+      "correctness": "225/225 reference and 225/225 development query-state validations passed across the closeout sessions.",
+      "authoritative_numeric_metrics": [],
+      "diagnostic_target_frame_counts": {
+        "session_medians": [12, 10, 11],
+        "session_ranges": ["8-16", "8-16", "8-14"]
       },
-      "frameOverrunMs": {
-        "P50": {"session_medians": [-7.893183, -6.687997, -7.7163885], "median_of_session_medians": -7.7163885, "session_range_percent": 15.6185},
-        "P90": {"session_medians": [-0.981828, 4.258714, -3.6628454], "median_of_session_medians": -0.981828, "session_range_percent": 792.1559},
-        "P95": {"session_medians": [-0.3216975, 4.8869774, -2.5037292], "median_of_session_medians": -0.3216975, "session_range_percent": 739.0707},
-        "P99": {"session_medians": [0.2064069, 5.28798188, -0.95761085], "median_of_session_medians": 0.2064069, "session_range_percent": 624.5593}
+      "diagnostic_frameDurationCpuMs": {
+        "P50": {"session_medians": [8.2329, 7.7273, 7.24815], "median_of_session_medians": 7.7273, "session_range_percent": 12.7438},
+        "P90": {"session_medians": [19.2253, 18.96322, 18.8204], "median_of_session_medians": 18.96322, "session_range_percent": 2.1352},
+        "P95": {"session_medians": [24.91536, 22.60454, 21.25965], "median_of_session_medians": 22.60454, "session_range_percent": 16.1725},
+        "P99": {"session_medians": [29.325549, 25.576492, 24.262239], "median_of_session_medians": 25.576492, "session_range_percent": 19.7967}
       },
-      "controlled_result_latency_ms": null
+      "diagnostic_frameOverrunMs": {
+        "P50": {"session_medians": [-3.466688, -5.312957, -6.160182], "median_of_session_medians": -5.312957, "session_range_percent": 50.6967},
+        "P90": {"session_medians": [10.8800568, 8.5492418, 7.1311046], "median_of_session_medians": 8.5492418, "session_range_percent": 43.8513},
+        "P95": {"session_medians": [13.7528107, 11.1256596, 10.028785], "median_of_session_medians": 11.1256596, "session_range_percent": 33.4724},
+        "P99": {"session_medians": [15.59447734, 14.1571151, 11.56609138], "median_of_session_medians": 14.1571151, "session_range_percent": 28.4549}
+      },
+      "controlled_result_latency_ms": null,
+      "classification_reason": "No frame percentile is stable in both reference and development channels; the interaction intrinsically captures only about 8-16 target frames per iteration. UIAutomator cannot define a sufficiently precise result-visible latency boundary without production instrumentation."
     },
     "resume": {
+      "classification": "LIMITED NUMERIC AUTHORITY",
+      "harness_revision": "q1.1d-sha256:b922993b8fe04c3e6a285533e04c26ae1b5607cc92e4b947d007b3c988f319ac",
       "definition": "Usable cached Songs with resident process; press Home; normal launch return; verify known Songs content and absence of blank scanning state.",
-      "cache_state": "Resident process; not cold startup.",
-      "frameDurationCpuMs": {
-        "P50": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863},
-        "P90": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863},
-        "P95": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863},
-        "P99": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863}
+      "cache_state": "StartupMode.HOT; process and Activity remain resident; not cold or warm startup.",
+      "correctness": "60/60 reference and 60/60 development cached-content returns passed across the closeout sessions.",
+      "authoritative_numeric_metrics": ["timeToInitialDisplayMs session median"],
+      "timeToInitialDisplayMs": {
+        "semantic_start": "system receives the normal launcher intent for the resident Activity",
+        "semantic_end": "first frame of the destination Activity is displayed",
+        "session_medians": [65.8234, 61.07105, 60.82235],
+        "median_of_session_medians": 61.07105,
+        "session_range_percent": 8.1889
       },
-      "frameOverrunMs": {
-        "P50": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444},
-        "P90": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444},
-        "P95": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444},
-        "P99": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444}
+      "diagnostic_frame_timing": {
+        "target_frames_per_iteration": "zero or one",
+        "empty_iteration_counts_by_session": [0, 1, 0],
+        "frameDurationCpuMs_session_medians": [41.11695, 39.958, 32.8353],
+        "frameDurationCpuMs_session_range_percent": 20.7259,
+        "frameOverrunMs_session_medians": [29.800436, 29.943086, 22.65658],
+        "frameOverrunMs_session_range_percent": 24.451
       },
-      "controlled_resume_latency_ms": null
+      "classification_reason": "Official AndroidX hot-start TTID exactly matches the resident Home-to-foreground transition and is below the approximately 10% session-noise warning in both channels. FrameTimingMetric is underpowered and diagnostic only."
     }
   },
   "measurement_quality_notes": [
     "Songs/Albums include hundreds of target frames per iteration and show approximate reference/development equivalence; several session ranges exceed the approximately 10% emulator-noise diagnostic.",
-    "Search captures only 6-8 target frames per iteration and its tails are noisy; the distribution is reference authority with an explicit quality warning, not a regression threshold.",
-    "Resume captures one target frame per iteration, so identical P50/P90/P95/P99 values are expected and only a narrow frame-timing trend is claimed.",
-    "No controlled search or resume latency was accepted because UIAutomator observation would not provide a sufficiently precise boundary without production instrumentation.",
-    "One failed Search-selector attempt was invalidated and preserved; its unchanged retry passed all 20 measured iterations.",
-    "Several successful runs required artifact-transfer retry after measurement; instrumentation remained successful and measurement was not rerun.",
+    "The 15-iteration Search closeout captures roughly 8-16 target frames per iteration, but no percentile is stable across both channels; all Search frame values are diagnostic only.",
+    "The 20-iteration resident foreground closeout establishes limited numeric authority for official hot-start TTID; reference and development session ranges are 8.19% and 8.41% respectively.",
+    "Resume FrameTimingMetric captures zero or one target frame per iteration and is diagnostic only; empty frame runs do not invalidate populated TTID or cached-content correctness.",
+    "No controlled Search latency was accepted because UIAutomator observation would not provide a sufficiently precise boundary without production instrumentation.",
+    "One original five-iteration Search selector failure remains preserved separately; all 450 closeout query-state checks passed.",
     "Raw AndroidX JSON, per-iteration values, extrema, metadata, and Perfetto traces remain in ignored generated results."
   ]
 }

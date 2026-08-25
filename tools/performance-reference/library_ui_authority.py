@@ -30,13 +30,18 @@ AUTHORITY_ABI = "x86_64"
 EXPECTED_SIZE = "1080x2160"
 EXPECTED_DENSITY = 440
 BENCHMARK_CLASS = "com.libreplayer.benchmark.LibraryUiBenchmark"
-ITERATIONS = 5
 DISCLAIMER = "CONTROLLED REGRESSION REFERENCE — NOT A UNIVERSAL DEVICE PERFORMANCE CLAIM"
 JOURNEYS = {
     "songs": "songsScroll",
     "albums": "albumsScrollColdAppArtworkCache",
     "search": "searchProgressiveQuery",
     "resume": "backgroundForegroundReturn",
+}
+JOURNEY_ITERATIONS = {
+    "songs": 5,
+    "albums": 5,
+    "search": 15,
+    "resume": 20,
 }
 FRAME_METRICS = ("frameDurationCpuMs", "frameOverrunMs")
 PERCENTILES = ("P50", "P90", "P95", "P99")
@@ -157,9 +162,15 @@ def prepare_cached_state(
     return {"launch": launch.strip(), **evidence}
 
 
-def run_instrumentation(adb_path: str, serial: str, result_dir: Path) -> dict:
+def run_instrumentation(
+    adb_path: str,
+    serial: str,
+    result_dir: Path,
+    journeys: tuple[str, ...],
+) -> dict:
     adb(adb_path, serial, "shell", "pm", "clear", startup.TEST_PACKAGE)
     before = set(startup.device_files(adb_path, serial))
+    class_filter = ",".join(f"{BENCHMARK_CLASS}#{JOURNEYS[name]}" for name in journeys)
     result = adb(
         adb_path,
         serial,
@@ -170,7 +181,7 @@ def run_instrumentation(adb_path: str, serial: str, result_dir: Path) -> dict:
         "-r",
         "-e",
         "class",
-        BENCHMARK_CLASS,
+        class_filter,
         "-e",
         "androidx.benchmark.suppressErrors",
         "EMULATOR",
@@ -179,7 +190,8 @@ def run_instrumentation(adb_path: str, serial: str, result_dir: Path) -> dict:
     )
     raw_path = result_dir / "instrumentation.txt"
     raw_path.write_text(result.stdout, encoding="utf-8")
-    if "OK (4 tests)" not in result.stdout or "FAILURES!!!" in result.stdout:
+    expected_success = f"OK ({len(journeys)} tests)"
+    if expected_success not in result.stdout or "FAILURES!!!" in result.stdout:
         raise LibraryUiAuthorityError(f"Instrumentation failed; see {raw_path}")
     after = set(startup.device_files(adb_path, serial))
     new_files = sorted(after - before)
@@ -195,9 +207,10 @@ def run_instrumentation(adb_path: str, serial: str, result_dir: Path) -> dict:
     )
     traces = [path for path in pulled if path.endswith((".perfetto-trace", ".trace"))]
     json_results = [path for path in pulled if path.endswith(".json")]
-    if len(traces) < len(JOURNEYS) * ITERATIONS:
+    expected_traces = sum(JOURNEY_ITERATIONS[name] for name in journeys)
+    if len(traces) < expected_traces:
         raise LibraryUiAuthorityError(
-            f"Expected at least {len(JOURNEYS) * ITERATIONS} traces, found {len(traces)}"
+            f"Expected at least {expected_traces} traces, found {len(traces)}"
         )
     if not json_results:
         raise LibraryUiAuthorityError("No AndroidX benchmark JSON was collected")
@@ -263,11 +276,17 @@ def pull_device_files_with_retry(
     return pulled
 
 
-def recover_instrumentation(adb_path: str, serial: str, result_dir: Path) -> dict:
+def recover_instrumentation(
+    adb_path: str,
+    serial: str,
+    result_dir: Path,
+    journeys: tuple[str, ...],
+) -> dict:
     raw_path = result_dir / "instrumentation.txt"
     raw = raw_path.read_text(encoding="utf-8")
-    if "OK (4 tests)" not in raw or "FAILURES!!!" in raw:
-        raise LibraryUiAuthorityError("Partial result is not a successful four-journey run")
+    expected_success = f"OK ({len(journeys)} tests)"
+    if expected_success not in raw or "FAILURES!!!" in raw:
+        raise LibraryUiAuthorityError("Partial result is not a successful selected-journey run")
     files = [
         path
         for path in startup.device_files(adb_path, serial)
@@ -281,7 +300,8 @@ def recover_instrumentation(adb_path: str, serial: str, result_dir: Path) -> dic
     )
     traces = [path for path in pulled if path.endswith((".perfetto-trace", ".trace"))]
     json_results = [path for path in pulled if path.endswith(".json")]
-    if len(traces) < len(JOURNEYS) * ITERATIONS or not json_results:
+    expected_traces = sum(JOURNEY_ITERATIONS[name] for name in journeys)
+    if len(traces) < expected_traces or not json_results:
         raise LibraryUiAuthorityError("Recovered artifact set is incomplete")
     return {
         "raw_result_path": raw_path.as_posix(),
@@ -304,34 +324,38 @@ def percentile(values: list[float], percentile_value: int) -> float:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
 
-def summarize_sampled_metric(metric: dict) -> dict:
+def summarize_sampled_metric(metric: dict, iterations: int) -> dict:
     runs = [[float(value) for value in run] for run in metric.get("runs", [])]
-    if len(runs) != ITERATIONS or any(not run for run in runs):
+    if len(runs) != iterations:
         raise LibraryUiAuthorityError(
-            f"Expected {ITERATIONS} populated sampled runs, found {len(runs)}"
+            f"Expected {iterations} sampled runs, found {len(runs)}"
         )
     iteration_percentiles = [
-        {name: percentile(run, int(name[1:])) for name in PERCENTILES}
+        ({name: percentile(run, int(name[1:])) for name in PERCENTILES} if run else None)
         for run in runs
     ]
     flattened = [value for run in runs for value in run]
+    populated_percentiles = [item for item in iteration_percentiles if item is not None]
+    if not flattened or not populated_percentiles:
+        raise LibraryUiAuthorityError("Sampled metric has no populated iterations")
     return {
         "androidx_percentiles": {name: float(metric[name]) for name in PERCENTILES},
         "iteration_percentiles": iteration_percentiles,
         "median_of_iteration_percentiles": {
-            name: statistics.median(item[name] for item in iteration_percentiles)
+            name: statistics.median(item[name] for item in populated_percentiles)
             for name in PERCENTILES
         },
         "sample_count_per_iteration": [len(run) for run in runs],
+        "empty_iteration_count": sum(not run for run in runs),
         "minimum": min(flattened),
         "maximum": max(flattened),
     }
 
 
-def summarize_scalar_metric(metric: dict) -> dict:
+def summarize_scalar_metric(metric: dict, iterations: int) -> dict:
     runs = [float(value) for value in metric.get("runs", [])]
-    if len(runs) != ITERATIONS:
-        raise LibraryUiAuthorityError(f"Expected {ITERATIONS} scalar runs, found {len(runs)}")
+    if len(runs) != iterations:
+        raise LibraryUiAuthorityError(f"Expected {iterations} scalar runs, found {len(runs)}")
     return {
         "raw": runs,
         "minimum": min(runs),
@@ -348,10 +372,16 @@ def find_metric_document(run_dir: Path) -> tuple[Path, dict]:
     raise LibraryUiAuthorityError(f"No AndroidX benchmark JSON found under {run_dir}")
 
 
-def summarize_document(document: dict, source: str) -> dict:
+def summarize_document(
+    document: dict,
+    source: str,
+    selected_journeys: tuple[str, ...],
+) -> dict:
     by_name = {str(item.get("name")): item for item in document["benchmarks"]}
-    journeys: dict[str, dict] = {}
-    for journey, benchmark_name in JOURNEYS.items():
+    journey_summaries: dict[str, dict] = {}
+    for journey in selected_journeys:
+        benchmark_name = JOURNEYS[journey]
+        iterations = JOURNEY_ITERATIONS[journey]
         benchmark = by_name.get(benchmark_name)
         if benchmark is None:
             raise LibraryUiAuthorityError(f"Missing benchmark result: {benchmark_name}")
@@ -359,17 +389,30 @@ def summarize_document(document: dict, source: str) -> dict:
         missing = [name for name in FRAME_METRICS if name not in sampled]
         if missing:
             raise LibraryUiAuthorityError(f"{benchmark_name} missing sampled metrics: {missing}")
-        journeys[journey] = {
+        journey_summaries[journey] = {
             "benchmark": benchmark_name,
-            "frameCount": summarize_scalar_metric(benchmark["metrics"]["frameCount"]),
-            **{name: summarize_sampled_metric(sampled[name]) for name in FRAME_METRICS},
+            "iteration_count": iterations,
+            "frameCount": summarize_scalar_metric(
+                benchmark["metrics"]["frameCount"],
+                iterations,
+            ),
+            **{
+                name: summarize_sampled_metric(sampled[name], iterations)
+                for name in FRAME_METRICS
+            },
         }
-    return {"source": source, "journeys": journeys}
+        for name in ("timeToInitialDisplayMs", "timeToFullDisplayMs"):
+            if name in benchmark.get("metrics", {}):
+                journey_summaries[journey][name] = summarize_scalar_metric(
+                    benchmark["metrics"][name],
+                    iterations,
+                )
+    return {"source": source, "journeys": journey_summaries}
 
 
-def summarize_run(run_dir: Path) -> dict:
+def summarize_run(run_dir: Path, journeys: tuple[str, ...]) -> dict:
     source, document = find_metric_document(run_dir)
-    summary = summarize_document(document, source.relative_to(run_dir).as_posix())
+    summary = summarize_document(document, source.relative_to(run_dir).as_posix(), journeys)
     (run_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -388,7 +431,7 @@ def session_distribution(values: list[float]) -> dict:
     }
 
 
-def compare_results(results_root: Path) -> dict:
+def compare_results(results_root: Path, journeys: tuple[str, ...]) -> dict:
     channels: dict[str, dict] = {}
     for variant in ("reference", "development"):
         summaries = [
@@ -400,7 +443,13 @@ def compare_results(results_root: Path) -> dict:
             for session in (1, 2, 3)
         ]
         variant_journeys: dict[str, dict] = {}
-        for journey in JOURNEYS:
+        for journey in journeys:
+            metric_names = [*FRAME_METRICS]
+            metric_names.extend(
+                name
+                for name in ("timeToInitialDisplayMs", "timeToFullDisplayMs")
+                if name in summaries[0]["journeys"][journey]
+            )
             variant_journeys[journey] = {
                 metric: {
                     percentile_name: session_distribution(
@@ -415,19 +464,30 @@ def compare_results(results_root: Path) -> dict:
                 }
                 for metric in FRAME_METRICS
             }
+            for metric in metric_names:
+                if metric not in FRAME_METRICS:
+                    variant_journeys[journey][metric] = session_distribution(
+                        [
+                            summary["journeys"][journey][metric]["median"]
+                            for summary in summaries
+                        ]
+                    )
         channels[variant] = variant_journeys
     relative: dict[str, dict] = {}
-    for journey in JOURNEYS:
+    for journey in journeys:
         relative[journey] = {}
-        for metric in FRAME_METRICS:
+        for metric in channels["reference"][journey]:
             relative[journey][metric] = {}
-            for percentile_name in PERCENTILES:
+            percentile_names = PERCENTILES if metric in FRAME_METRICS else ("median",)
+            for percentile_name in percentile_names:
+                reference_node = channels["reference"][journey][metric]
+                development_node = channels["development"][journey][metric]
                 reference = channels["reference"][journey][metric][percentile_name][
                     "median_of_session_medians"
-                ]
+                ] if metric in FRAME_METRICS else reference_node["median_of_session_medians"]
                 development = channels["development"][journey][metric][percentile_name][
                     "median_of_session_medians"
-                ]
+                ] if metric in FRAME_METRICS else development_node["median_of_session_medians"]
                 relative[journey][metric][percentile_name] = (
                     None if reference == 0 else (development / reference - 1.0) * 100.0
                 )
@@ -452,6 +512,7 @@ def host_environment() -> dict:
 
 
 def run_authority(args: argparse.Namespace) -> dict:
+    journeys = parse_journeys(args.journeys)
     result_dir = args.result_dir.resolve()
     recovering = (
         result_dir.exists()
@@ -471,7 +532,7 @@ def run_authority(args: argparse.Namespace) -> dict:
             "measurement_status": "successful; recovered from instrumentation.txt",
         }
         thermal_before = "unavailable after artifact-transfer retry"
-        execution = recover_instrumentation(args.adb, args.serial, result_dir)
+        execution = recover_instrumentation(args.adb, args.serial, result_dir, journeys)
     else:
         precondition = prepare_cached_state(
             args.adb,
@@ -484,11 +545,11 @@ def run_authority(args: argparse.Namespace) -> dict:
         thermal_before = adb(
             args.adb, args.serial, "shell", "dumpsys", "thermalservice", timeout=60
         ).stdout[-8_000:]
-        execution = run_instrumentation(args.adb, args.serial, result_dir)
+        execution = run_instrumentation(args.adb, args.serial, result_dir, journeys)
     thermal_after = adb(
         args.adb, args.serial, "shell", "dumpsys", "thermalservice", timeout=60
     ).stdout[-8_000:]
-    summary = summarize_run(result_dir)
+    summary = summarize_run(result_dir, journeys)
     metadata = {
         "schema_version": 1,
         "authority": DISCLAIMER,
@@ -512,8 +573,8 @@ def run_authority(args: argparse.Namespace) -> dict:
             "build_tools": args.build_tools,
         },
         "compilation_mode": "Full",
-        "iteration_count_per_journey": ITERATIONS,
-        "journeys": list(JOURNEYS),
+        "iteration_counts": {name: JOURNEY_ITERATIONS[name] for name in journeys},
+        "journeys": list(journeys),
         "cache_states": {
             "songs": "cached database; newly launched process; settled refresh",
             "albums": "cold LibrePlayer in-memory artwork cache per iteration; OS/file caches unspecified",
@@ -561,11 +622,24 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--build-tools", default="36.1.0")
     run.add_argument("--cache-timeout", default=900, type=int)
     run.add_argument("--settle-seconds", default=10, type=int)
+    run.add_argument("--journeys", default=",".join(JOURNEYS))
     summarize = subparsers.add_parser("summarize")
     summarize.add_argument("--run-dir", required=True, type=Path)
+    summarize.add_argument("--journeys", default=",".join(JOURNEYS))
     compare = subparsers.add_parser("compare")
     compare.add_argument("--results-root", required=True, type=Path)
+    compare.add_argument("--journeys", default=",".join(JOURNEYS))
     return parser
+
+
+def parse_journeys(value: str) -> tuple[str, ...]:
+    journeys = tuple(item.strip() for item in value.split(",") if item.strip())
+    if not journeys or len(set(journeys)) != len(journeys):
+        raise LibraryUiAuthorityError("Journey selection must be non-empty and unique")
+    unexpected = sorted(set(journeys) - set(JOURNEYS))
+    if unexpected:
+        raise LibraryUiAuthorityError(f"Unknown journeys: {unexpected}")
+    return journeys
 
 
 def main() -> int:
@@ -574,9 +648,12 @@ def main() -> int:
         if args.command == "device":
             result = require_authority_device(args.adb, args.serial)
         elif args.command == "summarize":
-            result = summarize_run(args.run_dir.resolve())
+            result = summarize_run(args.run_dir.resolve(), parse_journeys(args.journeys))
         elif args.command == "compare":
-            result = compare_results(args.results_root.resolve())
+            result = compare_results(
+                args.results_root.resolve(),
+                parse_journeys(args.journeys),
+            )
         else:
             result = run_authority(args)
         print(json.dumps(result, indent=2, sort_keys=True))
