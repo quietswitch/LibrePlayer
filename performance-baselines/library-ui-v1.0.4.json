@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED REGRESSION REFERENCE — NOT A UNIVERSAL DEVICE PERFORMANCE CLAIM",
+  "reference_git_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+  "benchmark_harness_revision": "q1.1d-sha256:af5602916b3493c0ab09ce3dabaa777a9a643a167810138e02b820638fa71a1d",
+  "benchmark_class_sha256": "f8f6012a32d051231b81901d8f00e65d1d6bcb36b73db733773ce55f2d330e0d",
+  "orchestration_script_sha256": "315edc0cf000fdbe5dc90ed04e4eba75b08e69d21d96401b97200ade21298332",
+  "fixture": {
+    "profile": "MEDIUM",
+    "logical_tracks": 2000,
+    "logical_albums": 200,
+    "logical_artists": 100,
+    "artwork_files": 160,
+    "ordinary_artwork_files": 156,
+    "oversized_artwork_files": 4,
+    "no_artwork_album_percent": 20,
+    "fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f"
+  },
+  "device": {
+    "avd": "LibrePlayer_Benchmark_API_36",
+    "device_profile": "Pixel 3",
+    "android_version": "16",
+    "api_level": 36,
+    "abi": "x86_64",
+    "system_image": "system-images;android-36;google_apis;x86_64",
+    "emulator_version": "36.4.10.0",
+    "resolution": "1080x2160",
+    "density_dpi": 440,
+    "ram_kb": 2018816,
+    "orientation": "portrait",
+    "locale": "en-US",
+    "font_scale": 1.0,
+    "animation_scales": 0,
+    "snapshot_policy": "no snapshot"
+  },
+  "compilation_mode": "Full",
+  "metric": "FrameTimingMetric",
+  "session_count": 3,
+  "iterations_per_journey_per_session": 5,
+  "session_order": [
+    "reference then development",
+    "development then reference",
+    "reference then development"
+  ],
+  "aggregation": "Each session value is the median of its five per-iteration percentiles; authority value is the median of three session values.",
+  "journeys": {
+    "songs": {
+      "definition": "Cached settled Songs at top; six normalized 78%-to-31% downward swipes; verify first unique path leaves viewport and Songs remains visible.",
+      "cache_state": "Cached database; newly launched process; refresh settled.",
+      "frameDurationCpuMs": {
+        "P50": {"session_medians": [2.631818, 2.88429, 2.608316], "median_of_session_medians": 2.631818, "session_range_percent": 10.4861},
+        "P90": {"session_medians": [3.328244, 3.858483, 3.3618652], "median_of_session_medians": 3.3618652, "session_range_percent": 15.7722},
+        "P95": {"session_medians": [3.61172325, 4.30887015, 3.72080175], "median_of_session_medians": 3.72080175, "session_range_percent": 18.7365},
+        "P99": {"session_medians": [4.36875744, 5.39535884, 4.97111539], "median_of_session_medians": 4.97111539, "session_range_percent": 20.6513}
+      },
+      "frameOverrunMs": {
+        "P50": {"session_medians": [-10.724823, -8.355698, -10.0140275], "median_of_session_medians": -10.0140275, "session_range_percent": 23.6581},
+        "P90": {"session_medians": [-8.9908443, -5.91292, -8.4674798], "median_of_session_medians": -8.4674798, "session_range_percent": 36.3499},
+        "P95": {"session_medians": [-8.36158045, -5.5014417, -8.0326865], "median_of_session_medians": -8.0326865, "session_range_percent": 35.6063},
+        "P99": {"session_medians": [-6.90350871, -4.43454256, -5.83485375], "median_of_session_medians": -5.83485375, "session_range_percent": 42.3141}
+      }
+    },
+    "albums": {
+      "definition": "Cold app artwork cache; navigate to Albums outside measurement; six normalized downward swipes; verify first album leaves viewport and later fixture albums remain.",
+      "cache_state": "LibrePlayer in-memory artwork cache cold per iteration; OS/file caches unspecified.",
+      "frameDurationCpuMs": {
+        "P50": {"session_medians": [2.410864, 2.455452, 2.286009], "median_of_session_medians": 2.410864, "session_range_percent": 7.0283},
+        "P90": {"session_medians": [3.162431, 3.123186, 2.8095588], "median_of_session_medians": 3.123186, "session_range_percent": 11.2985},
+        "P95": {"session_medians": [3.437254, 3.550168, 3.1534583], "median_of_session_medians": 3.437254, "session_range_percent": 11.5415},
+        "P99": {"session_medians": [4.70027819, 4.44492852, 4.1368472], "median_of_session_medians": 4.44492852, "session_range_percent": 12.6758}
+      },
+      "frameOverrunMs": {
+        "P50": {"session_medians": [-10.77546, -10.853857, -11.130128], "median_of_session_medians": -10.853857, "session_range_percent": 3.2677},
+        "P90": {"session_medians": [-7.143817, -6.543552, -8.837116], "median_of_session_medians": -7.143817, "session_range_percent": 32.1056},
+        "P95": {"session_medians": [-6.517145, -5.886092, -8.3987044], "median_of_session_medians": -6.517145, "session_range_percent": 38.5539},
+        "P99": {"session_medians": [-5.1204054, -5.1054504, -7.45863978], "median_of_session_medians": -5.1204054, "session_range_percent": 45.9571}
+      }
+    },
+    "search": {
+      "definition": "Blank loaded Search; progressively set D, Du, Dup, Dupl, Duplicate; verify Duplicate Display Metadata after every state.",
+      "cache_state": "Loaded stable library; blank query at iteration start.",
+      "frameDurationCpuMs": {
+        "P50": {"session_medians": [4.9700665, 4.144982, 5.1265325], "median_of_session_medians": 4.9700665, "session_range_percent": 19.7492},
+        "P90": {"session_medians": [12.7853175, 17.9437622, 9.510651], "median_of_session_medians": 12.7853175, "session_range_percent": 65.9593},
+        "P95": {"session_medians": [12.97207025, 18.8161826, 11.2580185], "median_of_session_medians": 12.97207025, "session_range_percent": 58.2649},
+        "P99": {"session_medians": [13.12147245, 19.51411892, 12.40305835], "median_of_session_medians": 13.12147245, "session_range_percent": 54.1941}
+      },
+      "frameOverrunMs": {
+        "P50": {"session_medians": [-7.893183, -6.687997, -7.7163885], "median_of_session_medians": -7.7163885, "session_range_percent": 15.6185},
+        "P90": {"session_medians": [-0.981828, 4.258714, -3.6628454], "median_of_session_medians": -0.981828, "session_range_percent": 792.1559},
+        "P95": {"session_medians": [-0.3216975, 4.8869774, -2.5037292], "median_of_session_medians": -0.3216975, "session_range_percent": 739.0707},
+        "P99": {"session_medians": [0.2064069, 5.28798188, -0.95761085], "median_of_session_medians": 0.2064069, "session_range_percent": 624.5593}
+      },
+      "controlled_result_latency_ms": null
+    },
+    "resume": {
+      "definition": "Usable cached Songs with resident process; press Home; normal launch return; verify known Songs content and absence of blank scanning state.",
+      "cache_state": "Resident process; not cold startup.",
+      "frameDurationCpuMs": {
+        "P50": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863},
+        "P90": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863},
+        "P95": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863},
+        "P99": {"session_medians": [23.04304, 23.180675, 22.492533], "median_of_session_medians": 23.04304, "session_range_percent": 2.9863}
+      },
+      "frameOverrunMs": {
+        "P50": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444},
+        "P90": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444},
+        "P95": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444},
+        "P99": {"session_medians": [10.137296, 12.550766, 9.920701], "median_of_session_medians": 10.137296, "session_range_percent": 25.9444}
+      },
+      "controlled_resume_latency_ms": null
+    }
+  },
+  "measurement_quality_notes": [
+    "Songs/Albums include hundreds of target frames per iteration and show approximate reference/development equivalence; several session ranges exceed the approximately 10% emulator-noise diagnostic.",
+    "Search captures only 6-8 target frames per iteration and its tails are noisy; the distribution is reference authority with an explicit quality warning, not a regression threshold.",
+    "Resume captures one target frame per iteration, so identical P50/P90/P95/P99 values are expected and only a narrow frame-timing trend is claimed.",
+    "No controlled search or resume latency was accepted because UIAutomator observation would not provide a sufficiently precise boundary without production instrumentation.",
+    "One failed Search-selector attempt was invalidated and preserved; its unchanged retry passed all 20 measured iterations.",
+    "Several successful runs required artifact-transfer retry after measurement; instrumentation remained successful and measurement was not rerun.",
+    "Raw AndroidX JSON, per-iteration values, extrema, metadata, and Perfetto traces remain in ignored generated results."
+  ]
+}
