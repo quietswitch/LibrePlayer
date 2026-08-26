@@ -240,3 +240,46 @@ python tools/performance-reference/synchronization_authority.py run `
 After all six sequential sides, generate the ignored comparison with `python tools/performance-reference/synchronization_authority.py compare --results-root performance-results/RUN_ID`. The concise reference distribution, raw reference probe durations, exact mutation identities, result classifications, and indexing separation are in `performance-baselines/synchronization-v1.0.4.json`. The accepted raw results and traces remain ignored under `performance-results/q1.1e-accepted-20260825/`.
 
 Five harness-development failure modes remain preserved in earlier ignored Q1.1e result roots and are excluded from authority: adb metadata argument splitting with spaces; sparse AndroidX custom-section extraction; a package-attribution race after full compilation; intermittent extraction even with `targetPackageOnly=false`; and the resulting final separation of exact probe timing from trace preservation. None was a LibrePlayer synchronization failure, and no timing from a pre-`b2edbb` harness appears in the curated distribution.
+
+## Playback-under-load authority
+
+Q1.1f establishes observable Media3 and MediaSession playback continuity while LibrePlayer executes its existing real library work. It adds no production playback or synchronization behavior. The benchmark-only provider starts the canonical track through the normal `PlaybackConnection` path, observes the `PlaybackService` MediaSession through an independent `MediaController`, and invokes the unchanged `LibraryRepository.rescanLibrary()` or `rebuildLibrary()` path. All controller interactions run on the required application thread.
+
+The deterministic playing track is `audio/artist-00010/album-00010/disc-01/track-00010.mp3` (`Track 00010`, SHA-256 `e36b35ecf92aad64312fd4f3507a1fd2d72ac36f0190c50887c7b30c6d0dbb85`), a 31.176-second MP3 distinct from every synchronization mutation target. Each operation begins after real playback is READY, playing, unsuppressed, connected, and stabilized. Over an approximately two-second observation interval, the same non-empty MediaItem must remain active, position must advance by at least 1,000 ms, and player errors, MediaItem transitions, position discontinuities, and session disconnects must all remain zero.
+
+Synchronization timing retains Q1.1e's accepted `SystemClock.elapsedRealtimeNanos()` boundary around only the complete repository call. Playback setup, fixture mutation/restoration, MediaStore indexing, catalog validation, the remainder of the observation window, and artifact transfer remain outside it. `CompilationMode.Full()` and `MemoryUsageMetric(Mode.Max)` preserve an independent Perfetto trace and diagnostic memory sample for every operation.
+
+The accepted content identities are `q1.1f-sha256:72a584f18fb60f047ebb659ce7c96f88888a4d04db2e1fb21602cb4828ffccca` for the identical reference/development overlay and `5011f642278c535195039743993e7f8ba42be64688bbf621aa586c104ad547d9` for the benchmark-only playback provider. The immutable reference remains v1.0.4 commit `d2c212640ea3955591799a21d5bd8e382a628a57`; its only `app/src/main` overlay is the previously accepted Q1.1c fully-drawn hook.
+
+The balanced API 36 matrix ran reference→development, development→reference, then reference→development. Each side/session contained 10 unchanged refreshes, 5 isolated Add refreshes, and 5 full rebuilds. All 120 primary operations passed exact playback and catalog assertions and produced 120 traces, with zero player errors, unexpected transitions, position discontinuities, session losses, position-progress failures, or catalog failures.
+
+| Journey | v1.0.4 reference | Development | Development delta | Reference / development session spread | Classification |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Playback + unchanged refresh | 48.617 ms | 48.943 ms | +0.67% | 22.26% / 17.78% | PLAYBACK CONTINUITY AUTHORITY + LIMITED NUMERIC LOAD AUTHORITY |
+| Playback + Add one | 50.263 ms | 51.100 ms | +1.67% | 29.35% / 13.52% | PLAYBACK CONTINUITY AUTHORITY + LIMITED NUMERIC LOAD AUTHORITY |
+| Playback + full rebuild | 75.103 ms | 75.800 ms | +0.93% | 22.04% / 13.56% | PLAYBACK CONTINUITY AUTHORITY + LIMITED NUMERIC LOAD AUTHORITY |
+
+Values are medians of three session medians. The approximately 10% spread diagnostic limits numeric precision; it is not a product threshold and does not weaken the exact continuity result. Session 3 was completed after an overnight task interruption and both paired channels reflected the slower resumed host environment.
+
+The first pre-authority reference setup is preserved separately and excluded: it issued a controller command from the provider Binder/IO thread, and Media3 correctly rejected it. After moving controller interactions to the application thread, both identical APK overlays were rebuilt and all accepted results were collected under `performance-results/q1.1f-authority-20260825-r2/`. Session 2 reference completed after the conversation cutoff and was recovered intact rather than rerun.
+
+LARGE stress is deferred because no generated/provisioned LARGE fixture was present and creating/indexing a new 10,000-track dataset would substantially expand this phase. Exact audio underrun counts are also unavailable in the release-like benchmark variant because the existing diagnostic is debug-only. **AUDIO UNDERRUN / ACOUSTIC DROPOUT AUTHORITY NOT ESTABLISHED BY Q1.1f EMULATOR CHANNEL.** Q1.1f proves emulator-observable Media3/session continuity, not acoustic, DAC, Bluetooth, or physical-device AudioTrack continuity.
+
+Run a side only after explicitly enumerating exactly one serial matching `^emulator-\d+$` and validating `LibrePlayer_Benchmark_API_36`:
+
+```powershell
+python tools/performance-reference/playback_under_load_authority.py run `
+  --adb "$env:ANDROID_HOME/platform-tools/adb.exe" `
+  --serial emulator-5554 `
+  --dataset tools/performance-fixtures/generated/MEDIUM `
+  --target-apk TARGET_APK `
+  --test-apk TEST_APK `
+  --result-dir performance-results/RUN_ID/session-1/reference `
+  --variant reference --session 1 --side 1 `
+  --reference-commit d2c212640ea3955591799a21d5bd8e382a628a57 `
+  --development-commit DEVELOPMENT_COMMIT `
+  --harness-revision q1.1f-sha256:72a584f18fb60f047ebb659ce7c96f88888a4d04db2e1fb21602cb4828ffccca `
+  --instrumentation-revision 5011f642278c535195039743993e7f8ba42be64688bbf621aa586c104ad547d9
+```
+
+After all six sequential sides, run `python tools/performance-reference/playback_under_load_authority.py compare --results-root performance-results/RUN_ID`. The concise distributions and exact limitations are in `performance-baselines/playback-under-load-v1.0.4.json`; raw results and traces remain ignored.

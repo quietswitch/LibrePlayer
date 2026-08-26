@@ -11,6 +11,11 @@
             android:name=".benchmark.SynchronizationProbeProvider"
             android:authorities="${applicationId}.synchronization-probe"
             android:exported="true" />
+
+        <provider
+            android:name=".benchmark.PlaybackLoadProbeProvider"
+            android:authorities="${applicationId}.playback-load-probe"
+            android:exported="true" />
     </application>
 
 </manifest>

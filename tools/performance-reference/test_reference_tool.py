@@ -88,6 +88,24 @@ class ReferenceToolTests(unittest.TestCase):
         )
         self.assertTrue(revision.startswith("q1.1e-sha256:"))
 
+    def test_playback_load_overlay_is_exactly_allowlisted(self) -> None:
+        reference_tool.validate_playback_load_overlay_hashes(
+            dict(reference_tool.PLAYBACK_LOAD_OVERLAY_HASHES)
+        )
+
+    def test_modified_playback_probe_is_rejected(self) -> None:
+        hashes = dict(reference_tool.PLAYBACK_LOAD_OVERLAY_HASHES)
+        path = "app/src/benchmark/java/com/libreplayer/benchmark/PlaybackLoadProbeProvider.kt"
+        hashes[path] = "0" * 64
+        with self.assertRaises(reference_tool.ReferenceError):
+            reference_tool.validate_playback_load_overlay_hashes(hashes)
+
+    def test_playback_load_harness_revision_is_content_addressed(self) -> None:
+        revision = reference_tool.playback_load_harness_revision(
+            dict(reference_tool.PLAYBACK_LOAD_OVERLAY_HASHES)
+        )
+        self.assertTrue(revision.startswith("q1.1f-sha256:"))
+
 
 if __name__ == "__main__":
     unittest.main()

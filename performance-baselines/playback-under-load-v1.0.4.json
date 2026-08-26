@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED REGRESSION REFERENCE — NOT A UNIVERSAL DEVICE OR ACOUSTIC PERFORMANCE CLAIM",
+  "reference_git_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+  "development_starting_commit": "42a4b10ee28c0f70c051d3aa34f0c4fa44299c99",
+  "harness_revision": "q1.1f-sha256:72a584f18fb60f047ebb659ce7c96f88888a4d04db2e1fb21602cb4828ffccca",
+  "instrumentation_sha256": "5011f642278c535195039743993e7f8ba42be64688bbf621aa586c104ad547d9",
+  "benchmark_sha256": "5ca8c3715d8bff099c0a7615d0699efb8fc861c0cbe32faea9b086cb190daca3",
+  "orchestration_sha256": "eb260f9ec3d5d467a40dd5a13d5c18c8b21c3d5bc790eedf6be63d10489ba2f2",
+  "benchmark_manifest_sha256": "b11872e42c18c2af7037a0222f7e10a108bccc998345b42bb9e8a97c0019eada",
+  "predecessor_harness_revision": "q1.1e-sha256:b2edbb194d2392eb70020115a5f6831a299bfc8e03994e7608391d52c4706d24",
+  "fixture": {
+    "profile": "MEDIUM",
+    "tracks": 2000,
+    "fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f",
+    "playback_identity": "audio/artist-00010/album-00010/disc-01/track-00010.mp3",
+    "playback_title": "Track 00010",
+    "playback_sha256": "e36b35ecf92aad64312fd4f3507a1fd2d72ac36f0190c50887c7b30c6d0dbb85",
+    "format": "MP3, mono, 8000 Hz",
+    "duration_ms": 31176,
+    "mutation_target": false,
+    "add_identity": "audio/artist-00003/album-00003/disc-01/track-02003.mp3",
+    "add_title": "Track 02003"
+  },
+  "device": {
+    "avd": "LibrePlayer_Benchmark_API_36",
+    "device_profile": "Pixel 3",
+    "android_version": "16",
+    "api_level": 36,
+    "abi": "x86_64",
+    "system_image": "system-images;android-36;google_apis;x86_64",
+    "resolution": "1080x2160",
+    "density_dpi": 440,
+    "ram_kb": 2018816,
+    "locale": "en-US",
+    "orientation": "portrait",
+    "animation_scales": 0,
+    "graphics": "host Intel OpenGL acceleration",
+    "snapshot_policy": "no snapshot"
+  },
+  "measurement": {
+    "playback_path": "normal AppContainer PlaybackConnection to PlaybackService-owned ExoPlayer and MediaSession",
+    "observer": "independent benchmark-variant MediaController attached to the real MediaSession",
+    "synchronization_clock": "android.os.SystemClock.elapsedRealtimeNanos",
+    "synchronization_interval": "immediately around the complete real LibraryRepository rescanLibrary() or rebuildLibrary() suspend call",
+    "observation_window_ms": 2000,
+    "minimum_observation_ms": 1800,
+    "minimum_position_advancement_ms": 1000,
+    "required_before_and_after_state": "same non-empty MediaItem; controller connected; STATE_READY; playWhenReady; isPlaying; unsuppressed; no player error; positive playback speed",
+    "hard_event_failures": [
+      "player error",
+      "MediaItem transition",
+      "position discontinuity",
+      "MediaSession/controller disconnect"
+    ],
+    "excluded_from_synchronization_duration": [
+      "playback setup and stabilization",
+      "filesystem mutation and restoration",
+      "MediaStore indexing and convergence",
+      "catalog validation",
+      "post-load observation",
+      "artifact transfer"
+    ],
+    "compilation_mode": "Full",
+    "trace_mechanism": "Macrobenchmark MemoryUsageMetric(Mode.Max); one Perfetto trace per operation; memory values diagnostic only",
+    "aggregation": "Raw durations and per-session medians are preserved. Authority uses the median of three balanced session medians. Approximately 10% between-session range is a measurement-quality warning, not a product threshold."
+  },
+  "sessions": {
+    "count": 3,
+    "order": [
+      "reference then development",
+      "development then reference",
+      "reference then development"
+    ],
+    "iterations_per_side_per_session": {
+      "unchanged": 10,
+      "add": 5,
+      "rebuild": 5
+    },
+    "accepted_operations": 120,
+    "accepted_traces": 120
+  },
+  "journeys": {
+    "unchanged": {
+      "definition": "Ordinary rescan of an already-current canonical 2,000-track catalog while the known fixture is playing.",
+      "reference_raw_ms_by_session": [
+        [45.374631, 41.361244, 61.067673, 48.537256, 47.249632, 48.695831, 55.125324, 49.081628, 48.247748, 49.35618],
+        [40.941935, 37.367962, 55.752298, 53.656009, 45.648468, 54.288416, 44.891677, 53.347079, 49.058315, 45.188945],
+        [59.536443, 46.21361, 53.594644, 48.873336, 67.933285, 56.817409, 63.011905, 59.902787, 60.431686, 53.188092]
+      ],
+      "development_raw_ms_by_session": [
+        [48.292329, 40.673226, 53.077916, 47.523528, 47.873446, 47.925943, 53.847091, 48.566158, 47.260328, 48.306538],
+        [51.20212, 41.877224, 48.637636, 45.581199, 50.462668, 48.795849, 52.567376, 52.948076, 49.090566, 48.351656],
+        [60.260581, 44.738241, 58.267678, 57.011407, 55.102207, 51.857411, 50.428062, 56.613687, 57.675475, 58.105635]
+      ],
+      "reference_session_medians_ms": [48.6165435, 47.3533915, 58.176926],
+      "development_session_medians_ms": [48.109136, 48.9432075, 56.812547],
+      "reference_median_of_session_medians_ms": 48.6165435,
+      "development_median_of_session_medians_ms": 48.9432075,
+      "development_relative_to_reference_percent": 0.6719,
+      "reference_all_samples": {"min_ms": 37.367962, "max_ms": 67.933285, "mean_ms": 51.4580483, "standard_deviation_ms": 6.9698879},
+      "development_all_samples": {"min_ms": 40.673226, "max_ms": 60.260581, "mean_ms": 50.7640419, "standard_deviation_ms": 4.7674243},
+      "reference_session_range_percent": 22.2631,
+      "development_session_range_percent": 17.7827,
+      "position_advancement_ms": {
+        "reference_min": 1871,
+        "reference_median": 1931.5,
+        "reference_max": 1994,
+        "development_min": 1910,
+        "development_median": 1929,
+        "development_max": 1978
+      },
+      "classification": "PLAYBACK CONTINUITY AUTHORITY + LIMITED NUMERIC LOAD AUTHORITY"
+    },
+    "add": {
+      "definition": "Restore canonical MEDIUM, add one deterministic file, wait for exact Android MediaStore convergence, then run the ordinary rescan while the known fixture is playing; expected catalog is exactly 2,001 paths.",
+      "reference_raw_ms_by_session": [
+        [50.153572, 65.680473, 46.975174, 49.493198, 47.432869],
+        [44.205862, 46.237067, 63.653647, 50.262861, 51.57506],
+        [54.022839, 64.588148, 64.24342, 61.531796, 72.263301]
+      ],
+      "development_raw_ms_by_session": [
+        [45.52129, 50.640349, 49.558726, 50.724881, 50.95459],
+        [48.887456, 51.100385, 52.951201, 46.262123, 57.640574],
+        [57.546991, 56.816219, 56.835116, 63.558938, 64.447718]
+      ],
+      "reference_session_medians_ms": [49.493198, 50.262861, 64.24342],
+      "development_session_medians_ms": [50.640349, 51.100385, 57.546991],
+      "reference_median_of_session_medians_ms": 50.262861,
+      "development_median_of_session_medians_ms": 51.100385,
+      "development_relative_to_reference_percent": 1.6663,
+      "reference_all_samples": {"min_ms": 44.205862, "max_ms": 72.263301, "mean_ms": 55.4879525, "standard_deviation_ms": 8.5920349},
+      "development_all_samples": {"min_ms": 45.52129, "max_ms": 64.447718, "mean_ms": 53.5631038, "standard_deviation_ms": 5.5250402},
+      "reference_session_range_percent": 29.3462,
+      "development_session_range_percent": 13.5158,
+      "position_advancement_ms": {
+        "reference_min": 1970,
+        "reference_median": 1974,
+        "reference_max": 2001,
+        "development_min": 1968,
+        "development_median": 1986,
+        "development_max": 2005
+      },
+      "classification": "PLAYBACK CONTINUITY AUTHORITY + LIMITED NUMERIC LOAD AUTHORITY"
+    },
+    "rebuild": {
+      "definition": "Real LibraryRepository.rebuildLibrary() of the populated canonical 2,000-track catalog while the known fixture is playing.",
+      "reference_raw_ms_by_session": [
+        [74.128691, 64.383395, 77.513927, 71.763875, 77.881404],
+        [75.409171, 64.396667, 81.977732, 75.103467, 72.83004],
+        [93.219835, 67.0296, 90.684471, 83.316036, 96.108582]
+      ],
+      "development_raw_ms_by_session": [
+        [77.809852, 62.889333, 73.857757, 77.152434, 75.799974],
+        [68.515026, 61.111426, 80.782779, 76.481611, 74.409898],
+        [84.685835, 70.992128, 86.367353, 90.805896, 82.876554]
+      ],
+      "reference_session_medians_ms": [74.128691, 75.103467, 90.684471],
+      "development_session_medians_ms": [75.799974, 74.409898, 84.685835],
+      "reference_median_of_session_medians_ms": 75.103467,
+      "development_median_of_session_medians_ms": 75.799974,
+      "development_relative_to_reference_percent": 0.9274,
+      "reference_all_samples": {"min_ms": 64.383395, "max_ms": 96.108582, "mean_ms": 77.7164595, "standard_deviation_ms": 9.4872064},
+      "development_all_samples": {"min_ms": 61.111426, "max_ms": 90.805896, "mean_ms": 76.3025237, "standard_deviation_ms": 7.9899335},
+      "reference_session_range_percent": 22.044,
+      "development_session_range_percent": 13.5566,
+      "position_advancement_ms": {
+        "reference_min": 1914,
+        "reference_median": 1928,
+        "reference_max": 1986,
+        "development_min": 1912,
+        "development_median": 1932,
+        "development_max": 1998
+      },
+      "classification": "PLAYBACK CONTINUITY AUTHORITY + LIMITED NUMERIC LOAD AUTHORITY"
+    }
+  },
+  "continuity": {
+    "result": "120/120 primary operations passed",
+    "player_errors": 0,
+    "unexpected_media_item_transitions": 0,
+    "unexpected_position_discontinuities": 0,
+    "session_disconnects": 0,
+    "position_progress_failures": 0,
+    "catalog_failures": 0,
+    "traces": "120/120",
+    "catalog_checks": "Every operation validated expected count, unique count, zero duplicate fixture identities, exact sorted fixture-path SHA-256, and selected Add identity/title semantics."
+  },
+  "resource_diagnostics": {
+    "authority": "diagnostic only",
+    "memory_metrics": ["memoryHeapSizeMaxKb", "memoryRssAnonMaxKb", "memoryRssFileMaxKb"],
+    "observed_ranges_kb_all_channels": {
+      "memoryHeapSizeMaxKb": [9033, 43309],
+      "memoryRssAnonMaxKb": [39212, 71452],
+      "memoryRssFileMaxKb": [119596, 125652]
+    },
+    "optimization_performed": false
+  },
+  "limitations": {
+    "audio": "AUDIO UNDERRUN / ACOUSTIC DROPOUT AUTHORITY NOT ESTABLISHED BY Q1.1f EMULATOR CHANNEL",
+    "reason": "Existing PlaybackAudioDiagnostics underrun logging is debug-only, while the authority target is release-like. No production player construction was changed to expose it. Media3/session continuity is not acoustic, DAC, Bluetooth, or physical AudioTrack proof.",
+    "large_stress": "Deferred because no generated/provisioned LARGE fixture was present; producing and indexing 10,000 tracks would substantially expand Q1.1f infrastructure. MEDIUM primary authority is complete."
+  },
+  "invalid_runs": [
+    {
+      "result_root": "performance-results/q1.1f-authority-20260825",
+      "stage": "session 1 reference, first setup",
+      "classification": "PRE-AUTHORITY HARNESS DEFECT — EXCLUDED",
+      "reason": "MediaController commands were issued from the provider Binder/IO thread. The existing controller correctly rejected the call. No measured timing entered this baseline."
+    }
+  ],
+  "recovery": {
+    "session_2_reference": "Completed after the interrupted conversation and was recovered without rerun: 20/20 operations, 20/20 traces, all summaries and instrumentation successful.",
+    "authoritative_operations_reused": 80,
+    "remaining_operations_executed_after_resume": 40
+  },
+  "reference_safety": {
+    "detached_reference": true,
+    "production_overlay_paths": ["app/src/main/java/com/libreplayer/navigation/LibrePlayerApp.kt"],
+    "production_overlay_sha256": "d3367152a56b16ed13c49dad6fddd2c5c128f9a23d48057900ce5649a8b33a93",
+    "production_playback_or_synchronization_overlay": false,
+    "tag_object": "71886ff2431cb3b25c956c140f23ebd3d8c1dcc9",
+    "tag_peeled_commit": "d2c212640ea3955591799a21d5bd8e382a628a57"
+  },
+  "raw_results": "Ignored under performance-results/q1.1f-authority-20260825-r2; do not commit traces."
+}
