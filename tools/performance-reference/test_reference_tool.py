@@ -69,6 +69,25 @@ class ReferenceToolTests(unittest.TestCase):
         )
         self.assertTrue(revision.startswith("q1.1d-sha256:"))
 
+    def test_synchronization_overlay_is_exactly_allowlisted(self) -> None:
+        hashes = dict(reference_tool.SYNCHRONIZATION_OVERLAY_HASHES)
+        reference_tool.validate_synchronization_overlay_hashes(hashes)
+
+    def test_modified_synchronization_probe_is_rejected(self) -> None:
+        hashes = dict(reference_tool.SYNCHRONIZATION_OVERLAY_HASHES)
+        path = next(iter(hashes))
+        hashes[path] = "0" * 64
+        with self.assertRaises(reference_tool.ReferenceError):
+            reference_tool.validate_synchronization_overlay_hashes(hashes)
+
+    def test_synchronization_harness_revision_is_content_addressed(self) -> None:
+        revision = reference_tool.synchronization_harness_revision(
+            dict(reference_tool.STARTUP_OVERLAY_HASHES),
+            dict(reference_tool.LIBRARY_UI_OVERLAY_HASHES),
+            dict(reference_tool.SYNCHRONIZATION_OVERLAY_HASHES),
+        )
+        self.assertTrue(revision.startswith("q1.1e-sha256:"))
+
 
 if __name__ == "__main__":
     unittest.main()

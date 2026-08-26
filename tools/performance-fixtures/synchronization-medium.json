@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "dataset_fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f",
+  "profile": "MEDIUM",
+  "mutations": {
+    "add": {
+      "album": "Album Orbit 🚀 00003",
+      "artist": "Artist Orbit 🚀 00003",
+      "expected_sha256": "10180ab42e018a7b50b35449dcbf1fca59f246953d594cfdf5e1cc69d6f94d7a",
+      "ordinal": 2003,
+      "relative_path": "audio/artist-00003/album-00003/disc-01/track-02003.mp3",
+      "title": "Track 02003"
+    },
+    "delete": {
+      "album": "Album 00200",
+      "artist": "Artist 00100",
+      "ordinal": 1000,
+      "relative_path": "audio/artist-00100/album-00200/disc-01/track-01000.mp3",
+      "title": "Track 01000"
+    },
+    "modify": {
+      "new_title": "Q1.1e Modified Track 00999",
+      "old_title": "Track 00999",
+      "ordinal": 999,
+      "relative_path": "audio/artist-00099/album-00199/disc-01/track-00999.mp3",
+      "replacement_sha256": "bf0cc4b951258eac2464c58c0db3be2fc111b41dbc8363a6230ce1ae6c33b014"
+    }
+  }
+}

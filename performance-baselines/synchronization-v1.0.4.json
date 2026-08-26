@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED REGRESSION REFERENCE — NOT A UNIVERSAL DEVICE PERFORMANCE CLAIM",
+  "reference_git_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+  "development_starting_commit": "5ffd66a79b9cdebf38fbcb8d6fc0111c57cef2e6",
+  "harness_revision": "q1.1e-sha256:b2edbb194d2392eb70020115a5f6831a299bfc8e03994e7608391d52c4706d24",
+  "probe_sha256": "e7b54d20ebb8abbad7b8a151c63cd73f01a3d6c24092bf8f630e4993b307565e",
+  "benchmark_sha256": "c4f92999ee4db94d548bc01bf4c0faac6b78f625d6f794c60a58e0ec4179635e",
+  "orchestration_sha256": "b8bd76032cd14007974828cbe7d4d32ced8fa0621b2c98a2215a11c8fb268f7a",
+  "fixture": {
+    "profile": "MEDIUM",
+    "tracks": 2000,
+    "fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f",
+    "mutation_manifest_sha256": "62cc96bcc377ad01e3f2d1ed487992ebe18bb99bafebd4420feac80df2ed4585"
+  },
+  "device": {
+    "avd": "LibrePlayer_Benchmark_API_36",
+    "device_profile": "Pixel 3",
+    "android_version": "16",
+    "api_level": 36,
+    "abi": "x86_64",
+    "system_image": "system-images;android-36;google_apis;x86_64",
+    "resolution": "1080x2160",
+    "density_dpi": 440,
+    "ram_kb": 2018812,
+    "locale": "en-US",
+    "orientation": "portrait",
+    "animation_scales": 0,
+    "snapshot_policy": "no snapshot"
+  },
+  "measurement": {
+    "clock": "android.os.SystemClock.elapsedRealtimeNanos",
+    "start": "immediately before dispatch to LibraryRepository.rescanLibrary() or LibraryRepository.rebuildLibrary()",
+    "end": "immediately after the real suspend call returns synchronously",
+    "excluded": [
+      "fixture restoration and mutation",
+      "MediaStore indexing and convergence polling",
+      "installation and process preparation",
+      "post-operation catalog hashing and mutation assertions",
+      "trace transfer"
+    ],
+    "compilation_mode": "Full",
+    "trace_mechanism": "Macrobenchmark MemoryUsageMetric(Mode.Max); memory values are diagnostic only",
+    "aggregation": "Per-session medians preserve every raw probe duration; authority is the median of three balanced session medians. Approximately 10% session range is a measurement-quality warning, not a regression threshold."
+  },
+  "sessions": {
+    "count": 3,
+    "order": [
+      "reference then development",
+      "development then reference",
+      "reference then development"
+    ],
+    "iterations_per_side_per_session": {
+      "unchanged": 10,
+      "add": 5,
+      "delete": 5,
+      "modify": 5,
+      "rebuild": 3
+    }
+  },
+  "mutations": {
+    "add": {
+      "relative_path": "audio/artist-00003/album-00003/disc-01/track-02003.mp3",
+      "title": "Track 02003",
+      "expected_count": 2001,
+      "identity_sha256": "c236dfbe747de4113e8a6876f14a856d679ed1010b4d77b7669ac84393ccb94c"
+    },
+    "delete": {
+      "relative_path": "audio/artist-00100/album-00200/disc-01/track-01000.mp3",
+      "title": "Track 01000",
+      "expected_count": 1999,
+      "identity_sha256": "0614fe80b18f2fbc95c917bf4e58410cd386a7ad886e0a9707c2b86e30a12c38"
+    },
+    "modify": {
+      "relative_path": "audio/artist-00099/album-00199/disc-01/track-00999.mp3",
+      "old_title": "Track 00999",
+      "new_title": "Q1.1e Modified Track 00999",
+      "expected_count": 2000,
+      "identity_sha256": "48fef38b09d0c44b6b758ada098d9afc5ae87389cc4ec5cb849d4866e0fe1c07"
+    }
+  },
+  "correctness": {
+    "result": "168/168 measured operations passed",
+    "traces": "168/168 measured operations produced a Perfetto trace",
+    "checks": "Every operation validates exact sorted fixture-path SHA-256, expected count, unique count, zero duplicate identities, and exact selected mutation presence/title semantics outside the timed interval."
+  },
+  "journeys": {
+    "unchanged": {
+      "classification": "LIMITED NUMERIC AUTHORITY",
+      "definition": "Normal rescan of an already-current canonical 2,000-track catalog.",
+      "reference_raw_ms_by_session": [
+        [217.5274, 89.9706, 88.0895, 140.0498, 119.8294, 100.9455, 106.88, 102.4496, 174.1708, 112.8071],
+        [189.0464, 90.4008, 90.0162, 121.5508, 117.9131, 110.3384, 105.2116, 102.3236, 113.1, 109.7585],
+        [168.3731, 80.2295, 84.8245, 95.9417, 103.7994, 103.8882, 99.749, 97.0605, 98.861, 91.553]
+      ],
+      "reference_session_medians_ms": [109.84355, 110.04845, 97.96075],
+      "reference_median_of_session_medians_ms": 109.84355,
+      "reference_session_range_percent": 11.0045,
+      "development_session_medians_ms": [116.09585, 107.82575, 98.88015],
+      "development_median_of_session_medians_ms": 107.82575,
+      "development_session_range_percent": 15.9662,
+      "development_relative_to_reference_percent": -1.837,
+      "counter_semantics": "mediaIdRows=2000, reused=2000, mediaRows=0, songUpserts=0, songDeletes=0",
+      "classification_reason": "Correct and approximately equivalent, but both channels cross the approximately 10% session-quality warning."
+    },
+    "add": {
+      "classification": "LIMITED NUMERIC AUTHORITY",
+      "definition": "MediaStore already exposes one deterministic new track before LibrePlayer rescan starts.",
+      "reference_raw_ms_by_session": [
+        [231.5147, 246.8703, 223.91, 224.9118, 237.1514],
+        [200.7059, 200.3827, 206.194, 203.2416, 204.9561],
+        [174.9654, 177.5101, 195.6757, 183.5257, 181.4272]
+      ],
+      "reference_session_medians_ms": [231.5147, 203.2416, 181.4272],
+      "reference_median_of_session_medians_ms": 203.2416,
+      "reference_session_range_percent": 24.6443,
+      "development_session_medians_ms": [200.0789, 205.1126, 195.2421],
+      "development_median_of_session_medians_ms": 200.0789,
+      "development_session_range_percent": 4.9333,
+      "development_relative_to_reference_percent": -1.5561,
+      "mediastore_indexing_session_medians_ms": {
+        "reference": [1151.7607, 1149.6664, 1110.4834],
+        "development": [1149.6985, 1146.8725, 1117.9021]
+      },
+      "counter_semantics": "mediaIdRows=2001, reused=2000, mediaRows=1, songUpserts=1, songDeletes=0",
+      "classification_reason": "Development is stable and both channels are approximately equivalent, but reference session drift exceeds the quality warning."
+    },
+    "delete": {
+      "classification": "LIMITED NUMERIC AUTHORITY",
+      "definition": "MediaStore already reflects removal of one deterministic known track before LibrePlayer rescan starts.",
+      "reference_raw_ms_by_session": [
+        [238.8929, 257.9866, 254.9853, 225.5098, 196.0111],
+        [172.3202, 205.1467, 212.5497, 196.2395, 192.2872],
+        [169.9796, 179.7876, 182.0819, 180.8725, 195.0576]
+      ],
+      "reference_session_medians_ms": [238.8929, 196.2395, 180.8725],
+      "reference_median_of_session_medians_ms": 196.2395,
+      "reference_session_range_percent": 29.5661,
+      "development_session_medians_ms": [195.0536, 197.5596, 165.4259],
+      "development_median_of_session_medians_ms": 195.0536,
+      "development_session_range_percent": 16.4743,
+      "development_relative_to_reference_percent": -0.6043,
+      "mediastore_indexing_session_medians_ms": {
+        "reference": [1142.2464, 1151.4201, 1114.2642],
+        "development": [1139.2198, 1155.3637, 1132.0651]
+      },
+      "counter_semantics": "mediaIdRows=1999, reused=1999, mediaRows=0, songUpserts=0, songDeletes=1",
+      "classification_reason": "Correct and approximately equivalent, but both channels exceed the session-quality warning."
+    },
+    "modify": {
+      "classification": "LIMITED NUMERIC AUTHORITY",
+      "definition": "MediaStore already exposes a deterministic replacement at the same path with the exact new title before LibrePlayer rescan starts.",
+      "reference_raw_ms_by_session": [
+        [209.9759, 211.7299, 206.7942, 211.8774, 214.5498],
+        [197.0356, 194.6952, 208.5898, 197.8256, 184.7081],
+        [174.0863, 175.5761, 189.5306, 184.8699, 187.067]
+      ],
+      "reference_session_medians_ms": [211.7299, 197.0356, 184.8699],
+      "reference_median_of_session_medians_ms": 197.0356,
+      "reference_session_range_percent": 13.6321,
+      "development_session_medians_ms": [200.4272, 212.7046, 187.1921],
+      "development_median_of_session_medians_ms": 200.4272,
+      "development_session_range_percent": 12.7291,
+      "development_relative_to_reference_percent": 1.7213,
+      "mediastore_indexing_session_medians_ms": {
+        "reference": [1184.2817, 1191.6855, 1157.2366],
+        "development": [1188.3797, 1198.3606, 1157.595]
+      },
+      "counter_semantics": "mediaIdRows=2000, reused=1999, mediaRows=1, songUpserts=1, songDeletes=0",
+      "classification_reason": "The Android-visible modification was deterministic in all 30 operations, but both channels exceed the session-quality warning."
+    },
+    "rebuild": {
+      "classification": "NUMERIC REGRESSION AUTHORITY",
+      "definition": "The real full LibraryRepository.rebuildLibrary() path rebuilds Room from the already-indexed canonical MediaStore catalog.",
+      "reference_raw_ms_by_session": [
+        [324.2518, 204.726, 204.3292],
+        [293.0538, 186.5631, 193.2612],
+        [299.4564, 184.425, 192.3865]
+      ],
+      "reference_session_medians_ms": [204.726, 193.2612, 192.3865],
+      "reference_median_of_session_medians_ms": 193.2612,
+      "reference_session_range_percent": 6.3849,
+      "development_session_medians_ms": [209.3681, 209.0157, 192.4617],
+      "development_median_of_session_medians_ms": 209.0157,
+      "development_session_range_percent": 8.0886,
+      "development_relative_to_reference_percent": 8.1519,
+      "counter_semantics": "full=true, mediaRows=2000, reused=0, songUpserts=2000, songDeletes=2000, albumWrites=620, artistWrites=204",
+      "classification_reason": "The three session medians are below the approximately 10% quality warning in both channels; only raw values and median/range are authoritative at this sample size."
+    }
+  },
+  "invalid_attempt_exclusion": [
+    "Unencoded adb metadata with spaces caused host argument splitting.",
+    "AndroidX custom trace-section extraction returned sparse scalar rows.",
+    "Package-attribution races survived target process pre-start.",
+    "Global targetPackageOnly=false trace-section extraction remained intermittent.",
+    "All pre-b2edbb harness timings are excluded; none was a LibrePlayer synchronization failure."
+  ],
+  "platform_limitations": [
+    "Emulator timing is a controlled regression reference only.",
+    "MemoryUsageMetric values and Perfetto traces are diagnostic, not synchronization-duration authority.",
+    "MediaStore indexing latency is host-observed operational data and is never added to LibrePlayer duration."
+  ],
+  "raw_result_location": "ignored performance-results/q1.1e-accepted-20260825/session-<1..3>/<reference|development>/"
+}

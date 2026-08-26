@@ -6,6 +6,11 @@
         <profileable
             android:shell="true"
             tools:targetApi="29" />
+
+        <provider
+            android:name=".benchmark.SynchronizationProbeProvider"
+            android:authorities="${applicationId}.synchronization-probe"
+            android:exported="true" />
     </application>
 
 </manifest>

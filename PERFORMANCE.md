@@ -1,6 +1,6 @@
 # Performance Development Authority
 
-Q1.1 separates infrastructure validation from performance claims. Q1.1b defines deterministic inputs and a reproducible v1.0.4 reference. Q1.1c adds controlled cold-start regression authority for a cached MEDIUM library. Q1.1d adds controlled interactive library-UI authority on API 36. None of these channels defines universal device performance or a product pass/fail threshold.
+Q1.1 separates infrastructure validation from performance claims. Q1.1b defines deterministic inputs and a reproducible v1.0.4 reference. Q1.1c adds controlled cold-start regression authority for a cached MEDIUM library. Q1.1d adds controlled interactive library-UI authority on API 36. Q1.1e adds controlled MediaStore-to-LibrePlayer synchronization authority. None of these channels defines universal device performance or a product pass/fail threshold.
 
 ## Fixture profiles
 
@@ -196,3 +196,47 @@ Keep `instrumentation.txt`, AndroidX JSON, all Perfetto traces, per-side metadat
 The accepted closeout produced 35 traces per side: 15 Search and 20 hot-return iterations. Search passed 450/450 query-state validations across both channels but has no numeric regression metric. Hot return passed 120/120 cached-content validations; reference TTID session medians were 65.8234, 61.07105, and 60.82235 ms (8.19% range), while development medians were 66.089, 60.5561, and 65.8088 ms (8.41% range). The median-of-session-medians values are 61.07105 ms reference and 65.8088 ms development. The approximately 10% diagnostic is not a regression threshold.
 
 The concise immutable-reference distribution and authority classifications are in `performance-baselines/library-ui-v1.0.4.json`. Raw closeout results and 210 Perfetto traces remain ignored under `performance-results/q1.1d-closeout-20260824/`.
+
+## Synchronization authority
+
+Q1.1e measures LibrePlayer's existing real `LibraryRepository.rescanLibrary()` and `LibraryRepository.rebuildLibrary()` paths; it does not add or optimize production synchronization behavior. A provider compiled only in the benchmark variant invokes those suspend calls. `SystemClock.elapsedRealtimeNanos()` starts immediately before dispatch to the repository operation and ends immediately after that call returns. Post-operation Room catalog loading, path-set hashing, mutation assertions, fixture mutation/restoration, MediaStore convergence, installation, and trace transfer are outside the duration.
+
+Macrobenchmark uses `CompilationMode.Full()` and `MemoryUsageMetric(Mode.Max)` to preserve one Perfetto trace per operation. The memory values are diagnostic only. AndroidX custom trace-section values are not synchronization authority because repeated harness-development runs showed intermittent trace-section scalar extraction and package attribution even when the operation, trace, exact probe duration, and catalog assertion all succeeded. The final content identity is `q1.1e-sha256:b2edbb194d2392eb70020115a5f6831a299bfc8e03994e7608391d52c4706d24`; the benchmark-only probe SHA-256 is `e7b54d20ebb8abbad7b8a151c63cd73f01a3d6c24092bf8f630e4993b307565e`.
+
+Every mutation iteration independently restores canonical MEDIUM. The host then applies exactly one deterministic filesystem mutation, sends the path-specific media scan, waits until MediaStore's complete fixture path set and required title match, and only then invokes LibrePlayer. MediaStore indexing latency is recorded separately and never added to the synchronization duration. Every operation subsequently validates expected count, unique count, zero duplicate identities, the SHA-256 of the complete sorted fixture-relative-path set, and exact selected identity presence/title semantics.
+
+The accepted balanced matrix used `LibrePlayer_Benchmark_API_36` and the same reference/development order as Q1.1d. It produced 168 correct operations and 168 traces: 60 unchanged refreshes, 30 Add, 30 Delete, 30 Modify, and 18 full rebuilds across both channels. Median-of-three-session-median results are:
+
+| Journey | v1.0.4 reference | Development | Development delta | Reference / development session spread | Classification |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Unchanged refresh | 109.844 ms | 107.826 ms | -1.84% | 11.00% / 15.97% | LIMITED NUMERIC AUTHORITY |
+| Add one | 203.242 ms | 200.079 ms | -1.56% | 24.64% / 4.93% | LIMITED NUMERIC AUTHORITY |
+| Delete one | 196.240 ms | 195.054 ms | -0.60% | 29.57% / 16.47% | LIMITED NUMERIC AUTHORITY |
+| Modify one | 197.036 ms | 200.427 ms | +1.72% | 13.63% / 12.73% | LIMITED NUMERIC AUTHORITY |
+| Full rebuild | 193.261 ms | 209.016 ms | +8.15% | 6.38% / 8.09% | NUMERIC REGRESSION AUTHORITY |
+
+Approximately 10% session divergence is only a measurement-quality warning, never a product regression threshold. Unchanged/Add/Delete/Modify remain useful limited comparisons but are not promoted to full numeric authority because at least one channel crossed that warning. Rebuild session medians remained below the warning in both channels; its three samples per side/session support raw values and median/range, not tail percentiles. The Android-visible Modify replacement was deterministic in all 30 operations and therefore was not platform-deferred.
+
+The separately observed MediaStore indexing median-of-session-medians was about 1.150 s Add, 1.142 s Delete, and 1.184 s Modify for reference, and 1.147 s, 1.139 s, and 1.188 s respectively for development. These are operational indexing diagnostics, not LibrePlayer performance values.
+
+Run one side only after explicitly enumerating exactly one serial matching `^emulator-\d+$` and validating the API 36 authority AVD:
+
+```powershell
+python tools/performance-reference/synchronization_authority.py run `
+  --adb "$env:ANDROID_HOME/platform-tools/adb.exe" `
+  --serial emulator-5556 `
+  --dataset tools/performance-fixtures/generated/MEDIUM `
+  --target-apk TARGET_APK `
+  --test-apk TEST_APK `
+  --result-dir performance-results/RUN_ID/session-1/reference `
+  --variant reference `
+  --session 1 `
+  --reference-commit d2c212640ea3955591799a21d5bd8e382a628a57 `
+  --development-commit DEVELOPMENT_COMMIT `
+  --harness-revision q1.1e-sha256:b2edbb194d2392eb70020115a5f6831a299bfc8e03994e7608391d52c4706d24 `
+  --instrumentation-revision e7b54d20ebb8abbad7b8a151c63cd73f01a3d6c24092bf8f630e4993b307565e
+```
+
+After all six sequential sides, generate the ignored comparison with `python tools/performance-reference/synchronization_authority.py compare --results-root performance-results/RUN_ID`. The concise reference distribution, raw reference probe durations, exact mutation identities, result classifications, and indexing separation are in `performance-baselines/synchronization-v1.0.4.json`. The accepted raw results and traces remain ignored under `performance-results/q1.1e-accepted-20260825/`.
+
+Five harness-development failure modes remain preserved in earlier ignored Q1.1e result roots and are excluded from authority: adb metadata argument splitting with spaces; sparse AndroidX custom-section extraction; a package-attribution race after full compilation; intermittent extraction even with `targetPackageOnly=false`; and the resulting final separation of exact probe timing from trace preservation. None was a LibrePlayer synchronization failure, and no timing from a pre-`b2edbb` harness appears in the curated distribution.

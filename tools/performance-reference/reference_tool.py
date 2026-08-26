@@ -37,6 +37,15 @@ LIBRARY_UI_OVERLAY_HASHES = {
         "1a0e4d4cfff586986857ac0e6ab4919fce9ca2631118b5f499bfd0854c6096ee",
 }
 LIBRARY_UI_OVERLAY_PATHS = set(LIBRARY_UI_OVERLAY_HASHES)
+SYNCHRONIZATION_OVERLAY_HASHES = {
+    "app/src/benchmark/AndroidManifest.xml":
+        "2ce524b947d2ef04a4ac38d26cab8510b4597b1337096ad3cb0ef27b05418f35",
+    "app/src/benchmark/java/com/libreplayer/benchmark/SynchronizationProbeProvider.kt":
+        "e7b54d20ebb8abbad7b8a151c63cd73f01a3d6c24092bf8f630e4993b307565e",
+    "benchmark/src/main/java/com/libreplayer/benchmark/SynchronizationBenchmark.kt":
+        "c4f92999ee4db94d548bc01bf4c0faac6b78f625d6f794c60a58e0ec4179635e",
+}
+SYNCHRONIZATION_OVERLAY_PATHS = set(SYNCHRONIZATION_OVERLAY_HASHES)
 
 
 class ReferenceError(RuntimeError):
@@ -155,6 +164,40 @@ def library_ui_harness_revision(
     return f"q1.1d-sha256:{digest.hexdigest()}"
 
 
+def validate_synchronization_overlay_hashes(hashes: dict[str, str]) -> None:
+    if set(hashes) != SYNCHRONIZATION_OVERLAY_PATHS:
+        raise ReferenceError(f"Synchronization overlay paths differ from allowlist: {sorted(hashes)}")
+    mismatches = {
+        path: hashes[path]
+        for path, expected in SYNCHRONIZATION_OVERLAY_HASHES.items()
+        if hashes[path] != expected
+    }
+    if mismatches:
+        raise ReferenceError(f"Synchronization overlay content hash mismatch: {mismatches}")
+
+
+def validate_synchronization_overlay(repo: Path) -> dict[str, str]:
+    hashes = {
+        path: file_sha256(repo / path)
+        for path in SYNCHRONIZATION_OVERLAY_PATHS
+        if (repo / path).is_file()
+    }
+    validate_synchronization_overlay_hashes(hashes)
+    return hashes
+
+
+def synchronization_harness_revision(
+    startup_hashes: dict[str, str],
+    library_ui_hashes: dict[str, str],
+    synchronization_hashes: dict[str, str],
+) -> str:
+    digest = hashlib.sha256()
+    digest.update(f"library-ui:{library_ui_harness_revision(startup_hashes, library_ui_hashes)}\n".encode())
+    for path in sorted(synchronization_hashes):
+        digest.update(f"{path}:{synchronization_hashes[path]}\n".encode())
+    return f"q1.1e-sha256:{digest.hexdigest()}"
+
+
 def ensure_external_worktree(repo: Path, worktree: Path) -> None:
     repo = repo.resolve()
     worktree = worktree.resolve()
@@ -192,18 +235,26 @@ def prepare(repo: Path, worktree: Path) -> dict:
     validate_harness_delta(delta)
     startup_hashes = validate_startup_overlay(repo)
     library_ui_hashes = validate_library_ui_overlay(repo)
+    synchronization_hashes = validate_synchronization_overlay(repo)
     worktree.parent.mkdir(parents=True, exist_ok=True)
     git(repo, "worktree", "add", "--detach", str(worktree), REFERENCE_COMMIT, capture=False)
     try:
         patch = git(repo, "diff", "--binary", REFERENCE_COMMIT, HARNESS_COMMIT, "--", *sorted(ALLOWED_OVERLAY_PATHS)).stdout
         git(worktree, "apply", "--whitespace=nowarn", "-", input_bytes=patch)
-        for path in sorted(STARTUP_OVERLAY_PATHS | LIBRARY_UI_OVERLAY_PATHS):
+        for path in sorted(
+            STARTUP_OVERLAY_PATHS |
+            LIBRARY_UI_OVERLAY_PATHS |
+            SYNCHRONIZATION_OVERLAY_PATHS
+        ):
             destination = worktree / path
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(repo / path, destination)
         applied = status_paths(worktree)
         expected_applied = (
-            ALLOWED_OVERLAY_PATHS | STARTUP_OVERLAY_PATHS | LIBRARY_UI_OVERLAY_PATHS
+            ALLOWED_OVERLAY_PATHS |
+            STARTUP_OVERLAY_PATHS |
+            LIBRARY_UI_OVERLAY_PATHS |
+            SYNCHRONIZATION_OVERLAY_PATHS
         )
         if applied != expected_applied:
             raise ReferenceError(f"Applied overlay differs from allowlist: {sorted(applied)}")
@@ -218,10 +269,14 @@ def prepare(repo: Path, worktree: Path) -> dict:
         return {
             "reference_git_commit": REFERENCE_COMMIT,
             "benchmark_foundation_commit": HARNESS_COMMIT,
-            "benchmark_harness_revision": library_ui_harness_revision(
+            "benchmark_harness_revision": synchronization_harness_revision(
                 startup_hashes,
                 library_ui_hashes,
+                synchronization_hashes,
             ),
+            "synchronization_instrumentation_sha256": synchronization_hashes[
+                "app/src/benchmark/java/com/libreplayer/benchmark/SynchronizationProbeProvider.kt"
+            ],
             "measurement_hook_sha256": startup_hashes[STARTUP_HOOK_PATH],
             "worktree": str(worktree),
             "detached": True,
@@ -254,6 +309,7 @@ def cleanup(repo: Path, worktree: Path, gradle_user_home: Path | None = None) ->
         - ALLOWED_OVERLAY_PATHS
         - STARTUP_OVERLAY_PATHS
         - LIBRARY_UI_OVERLAY_PATHS
+        - SYNCHRONIZATION_OVERLAY_PATHS
     )
     if unexpected:
         raise ReferenceError(f"Refusing to remove worktree with unexpected files: {sorted(unexpected)}")
