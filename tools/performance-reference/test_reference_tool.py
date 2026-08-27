@@ -106,6 +106,27 @@ class ReferenceToolTests(unittest.TestCase):
         )
         self.assertTrue(revision.startswith("q1.1f-sha256:"))
 
+    def test_memory_resource_overlay_is_exactly_allowlisted(self) -> None:
+        reference_tool.validate_memory_resource_overlay_hashes(
+            dict(reference_tool.MEMORY_RESOURCE_OVERLAY_HASHES)
+        )
+
+    def test_modified_memory_resource_benchmark_is_rejected(self) -> None:
+        hashes = dict(reference_tool.MEMORY_RESOURCE_OVERLAY_HASHES)
+        path = "benchmark/src/main/java/com/libreplayer/benchmark/MemoryResourceBenchmark.kt"
+        hashes[path] = "0" * 64
+        with self.assertRaises(reference_tool.ReferenceError):
+            reference_tool.validate_memory_resource_overlay_hashes(hashes)
+
+    def test_memory_resource_harness_revision_is_exact(self) -> None:
+        revision = reference_tool.memory_resource_harness_revision(
+            dict(reference_tool.MEMORY_RESOURCE_OVERLAY_HASHES)
+        )
+        self.assertEqual(
+            revision,
+            "q1.1g-sha256:d4f41327421f4c570392cf16610462054489a6351b28cc84ecfbd3400be2c5fe",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

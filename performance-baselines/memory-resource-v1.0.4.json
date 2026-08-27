@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED REGRESSION REFERENCE — NOT A UNIVERSAL DEVICE MEMORY REQUIREMENT",
+  "reference": {
+    "tag": "v1.0.4",
+    "tag_object": "71886ff2431cb3b25c956c140f23ebd3d8c1dcc9",
+    "commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+    "harness": "q1.1g-sha256:d4f41327421f4c570392cf16610462054489a6351b28cc84ecfbd3400be2c5fe",
+    "predecessor_harness": "q1.1f-sha256:72a584f18fb60f047ebb659ce7c96f88888a4d04db2e1fb21602cb4828ffccca",
+    "probe_sha256": "e4c060d3719d3dc77a5c465aedab8e87b975d748ef9f090019f4622e6b1fd669",
+    "production_overlay": ["app/src/main/java/com/libreplayer/navigation/LibrePlayerApp.kt"],
+    "q1_1g_app_src_main_changes": 0
+  },
+  "development_start_commit": "88d8553cbf151fbca90a73ba9a2132234550bfef",
+  "dataset": {
+    "profile": "MEDIUM",
+    "tracks": 2000,
+    "fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f",
+    "source": "public Music storage and MediaStore; Room was not seeded"
+  },
+  "device": {
+    "avd": "LibrePlayer_Benchmark_API_36",
+    "android": 16,
+    "api": 36,
+    "abi": "x86_64",
+    "profile": "Pixel 3",
+    "resolution": "1080x2160",
+    "density_dpi": 440,
+    "ram_kb": 2018812,
+    "locale": "en-US",
+    "font_scale": 1.0,
+    "animation_scales": 0,
+    "orientation": "portrait",
+    "snapshot_policy": "-no-snapshot"
+  },
+  "sources": {
+    "peaks": "AndroidX MemoryUsageMetric(Mode.Max)",
+    "settled": "dumpsys meminfo com.libreplayer",
+    "threads": "/proc/<pid>/status Threads",
+    "sessions": "dumpsys media_session",
+    "services": "dumpsys activity services com.libreplayer",
+    "parsed_memory_kb": ["TOTAL PSS", "TOTAL RSS", "TOTAL SWAP PSS", "Java Heap", "Native Heap", "Code", "Stack", "Graphics", "Private Other", "System"],
+    "parsed_resources": ["Views", "ViewRootImpl", "AppContexts", "Activities", "Assets", "AssetManagers", "Local Binders", "Proxy Binders", "Parcel memory", "Parcel count", "Death Recipients", "WebViews", "Bitmap (malloced)", "Threads"],
+    "playback_resources": ["MediaSession count", "controller count", "queue size", "PLAYING", "PlaybackService count", "foreground state"],
+    "file_descriptors": "UNAVAILABLE — /proc/<pid>/fd returned Permission denied; no root or security weakening was used"
+  },
+  "method": {
+    "settle": "2500 ms after baseline/cycles and 5000 ms final natural settle",
+    "forced_gc": false,
+    "trim_memory": false,
+    "artificial_pressure": false,
+    "session_order": [["reference", "development"], ["development", "reference"], ["reference", "development"]],
+    "journey_measurements": 30,
+    "checkpoints": 264,
+    "traces": 30
+  },
+  "journeys": {
+    "idle": {
+      "definition": "five independent settled populated process starts plus final settle",
+      "labels": ["start-1", "start-2", "start-3", "start-4", "start-5", "final"],
+      "reference_pss_kb": [[129511,127120,126895,128372,128716,128287],[137177,135302,133389,133116,130870,130374],[133775,133830,133622,130287,134125,133604]],
+      "reference_rss_kb": [[213700,213024,211276,212804,213240,214460],[212384,211860,211264,211256,209040,212704],[210308,211408,211316,208184,212184,215828]],
+      "reference_threads": [[37,38,39,40,41,40],[36,39,39,39,40,39],[37,39,39,39,38,37]],
+      "reference_pss_net_kb": [-1224,-6803,-171],
+      "development_pss_net_kb": [-13217,-1025,-1091],
+      "peak_medians_kb": {"reference": {"heap": 20067, "rss_anon": 64956, "rss_file": 159400}, "development": {"heap": 20151, "rss_anon": 65100, "rss_file": 160216}},
+      "growth": "warm/plateau in all six sides; no process-to-process upward sequence",
+      "classification": "RETAINED-MEMORY NUMERIC AUTHORITY"
+    },
+    "songs": {
+      "definition": "10 resident-process down-and-return cycles with 40-step gestures",
+      "labels": ["baseline","cycle-1","cycle-2","cycle-3","cycle-4","cycle-5","cycle-6","cycle-7","cycle-8","cycle-9","cycle-10","final"],
+      "reference_pss_kb": [[132863,142103,138731,102899,103127,103125,103135,102845,71283,71226,66764,58328],[130876,131554,140555,140522,124357,104321,104379,92787,87205,85871,84373,75099],[135596,136004,145011,144931,145076,144980,123077,103618,103039,103734,103523,93973]],
+      "reference_rss_kb": [[214132,226000,225964,190288,190628,190628,190672,190420,158204,158160,153680,145244],[209580,215164,224280,224420,207480,187148,187220,175236,169032,167604,166116,156844],[211632,217176,226248,226272,226356,226380,203356,183712,183204,183904,183724,174228]],
+      "reference_threads": [[36,39,39,32,32,32,32,32,33,33,33,33],[36,38,39,32,32,32,32,32,32,32,33,33],[38,39,39,32,32,32,32,32,32,32,32,32]],
+      "reference_pss_net_kb": [-74535,-55777,-41623],
+      "development_pss_net_kb": [-67727,-70521,-48455],
+      "peak_medians_kb": {"reference": {"heap": 20047, "rss_anon": 67980, "rss_file": 158944}, "development": {"heap": 19995, "rss_anon": 68684, "rss_file": 159724}},
+      "growth": "warm values followed by natural heap/code-page release; no late retained-memory or thread ratchet",
+      "classification": "LIMITED RETAINED-MEMORY AUTHORITY"
+    },
+    "albums": {
+      "definition": "10 resident-process artwork cycles; application cache cold initially and never cleared",
+      "labels": ["baseline","cycle-1","cycle-2","cycle-3","cycle-4","cycle-5","cycle-6","cycle-7","cycle-8","cycle-9","cycle-10","final"],
+      "reference_pss_kb": [[136667,142002,141076,140682,140884,101792,101862,101840,101723,101606,101513,95023],[139275,145788,144979,144772,144618,114362,105349,105610,105418,105388,105058,97777],[141912,147826,144356,144044,143900,143673,114732,91337,81652,77065,77409,69920]],
+      "reference_rss_kb": [[216556,226560,225836,225604,225664,186880,186972,186996,186884,186940,186896,180412],[216856,227644,227220,227036,226972,196852,187884,188232,188048,188092,188028,180948],[216720,228284,227508,227324,227376,227184,197876,174520,164792,158740,159200,151724]],
+      "reference_threads": [[38,39,41,33,33,33,33,33,34,34,34,34],[38,40,40,32,32,33,33,33,33,33,33,33],[39,40,40,32,32,32,32,32,32,32,32,32]],
+      "reference_pss_net_kb": [-41644,-41498,-71992],
+      "development_pss_net_kb": [-68707,-43751,-3296],
+      "peak_medians_kb": {"reference": {"heap": 21480, "rss_anon": 67124, "rss_file": 161956}, "development": {"heap": 21448, "rss_anon": 66168, "rss_file": 161936}},
+      "growth": "early artwork warming plateaus or is naturally released; no uninterrupted cache/bitmap accumulation",
+      "classification": "LIMITED RETAINED-MEMORY AUTHORITY"
+    },
+    "search": {
+      "definition": "20 blank→D→Du→Dup→Dupl→Duplicate→validated result→clear cycles",
+      "labels": ["baseline","cycle-1","cycle-5","cycle-10","cycle-15","cycle-20","final"],
+      "reference_pss_kb": [[140135,142459,148184,142089,141827,141995,137830],[142068,144160,140486,145052,143924,144646,139051],[142064,144667,139186,142739,143872,142541,138421]],
+      "reference_rss_kb": [[219184,225384,231244,225520,225400,225536,221424],[218920,225048,221536,226376,225436,226260,220724],[217772,224516,220060,224228,225516,224248,220152]],
+      "reference_threads": [[37,40,40,40,40,40,40],[37,39,40,40,40,40,40],[37,38,39,39,41,41,41]],
+      "reference_pss_net_kb": [-2305,-3017,-3643],
+      "development_pss_net_kb": [-3029,-4190,-5425],
+      "peak_medians_kb": {"reference": {"heap": 21456, "rss_anon": 68872, "rss_file": 164100}, "development": {"heap": 21428, "rss_anon": 68344, "rss_file": 164020}},
+      "growth": "PSS/RSS and threads remain bounded through cycle 20 with no late accumulation",
+      "classification": "RETAINED-MEMORY NUMERIC AUTHORITY"
+    },
+    "playback": {
+      "definition": "real PlaybackService/Media3/MediaSession and deterministic 20-track queue, minute 0–5 plus post-stop",
+      "labels": ["minute-0","minute-1","minute-2","minute-3","minute-4","minute-5","post-stop"],
+      "reference_pss_kb": [[149774,144190,144358,146269,146322,145153,141106],[151846,146551,148437,149489,136524,124256,112827],[150801,146783,145609,147966,145237,147320,140962]],
+      "reference_rss_kb": [[231864,230984,231552,233740,234092,233604,228892],[232136,231612,233852,235216,221848,211092,199028],[230508,232344,231552,234824,232552,235844,228428]],
+      "reference_threads": [[52,47,43,43,42,42,39],[51,44,43,44,44,42,39],[49,45,42,44,42,43,39]],
+      "reference_pss_net_kb": [-8668,-39019,-9839],
+      "development_pss_net_kb": [-25525,-8370,-7557],
+      "peak_medians_kb": {"reference": {"heap": 25957, "rss_anon": 68448, "rss_file": 171224}, "development": {"heap": 25721, "rss_anon": 67224, "rss_file": 172092}},
+      "correctness": "all 36 active checkpoints had one LibrePlayer MediaSession, queue 20, PLAYING and foreground service; all six post-stop checkpoints were inactive with queue zero and service not foreground",
+      "growth": "active playback settles without memory/thread ratchet; stop releases player/session resources",
+      "classification": "RETAINED-MEMORY NUMERIC AUTHORITY"
+    }
+  },
+  "resource_authority": {
+    "classification": "RESOURCE CORRECTNESS + TRACE AUTHORITY",
+    "finding": "Views, roots, activities, assets, binders, parcels, bitmaps and threads show bounded warming/release, not per-cycle accumulation. Missing Search bitmap fields are null, never synthesized."
+  },
+  "apk_size": {
+    "artifact": "equivalent unsigned release APK from the checked-in toolchain",
+    "reference_bytes": 19833847,
+    "development_bytes": 19833847,
+    "delta_bytes": 0,
+    "limitation": "Independent builds have different SHA-256 metadata; byte size is the authority."
+  },
+  "large": {"performed": false, "reason": "A generated/provisioned 10,000-track corpus was not already present; MEDIUM is primary authority."},
+  "results": {
+    "accepted_root": "performance-results/q1.1g-authority-20260826-r4",
+    "raw_committed": false,
+    "invalid": [
+      ["performance-results/q1.1g-authority-20260826", "host post-processing scope failure after reference Idle"],
+      ["performance-results/q1.1g-authority-20260826-r2", "100-step Songs apparatus exited during emulator contention"],
+      ["performance-results/q1.1g-authority-20260826-r3", "AVD shell identity query timed out before measurement"]
+    ]
+  },
+  "limitations": [
+    "Controlled API 36 emulator regression evidence is not a physical-device universal memory requirement.",
+    "Natural GC and mapped-page reclamation are intentionally uncontrolled; slope alone does not determine leak status.",
+    "External object counters do not replace heap-dump ownership analysis.",
+    "No forced-GC/trim diagnostic was needed or performed; no optimization was performed."
+  ]
+}

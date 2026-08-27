@@ -62,6 +62,26 @@ PLAYBACK_LOAD_OVERLAY_HASHES = {
         "5ca8c3715d8bff099c0a7615d0699efb8fc861c0cbe32faea9b086cb190daca3",
 }
 PLAYBACK_LOAD_OVERLAY_PATHS = set(PLAYBACK_LOAD_OVERLAY_HASHES)
+ACCEPTED_PLAYBACK_LOAD_HARNESS = (
+    "q1.1f-sha256:72a584f18fb60f047ebb659ce7c96f88888a4d04db2e1fb21602cb4828ffccca"
+)
+MEMORY_RESOURCE_OVERLAY_HASHES = {
+    "app/src/benchmark/AndroidManifest.xml":
+        "d719a3457df8468f14a0de0ec961bb6e01580381e316b6430c8bb769abe7ccf7",
+    "app/src/benchmark/java/com/libreplayer/benchmark/SynchronizationProbeProvider.kt":
+        "e7b54d20ebb8abbad7b8a151c63cd73f01a3d6c24092bf8f630e4993b307565e",
+    "benchmark/src/main/java/com/libreplayer/benchmark/SynchronizationBenchmark.kt":
+        "c4f92999ee4db94d548bc01bf4c0faac6b78f625d6f794c60a58e0ec4179635e",
+    "app/src/benchmark/java/com/libreplayer/benchmark/PlaybackLoadProbeProvider.kt":
+        "5011f642278c535195039743993e7f8ba42be64688bbf621aa586c104ad547d9",
+    "benchmark/src/main/java/com/libreplayer/benchmark/PlaybackUnderLoadBenchmark.kt":
+        "5ca8c3715d8bff099c0a7615d0699efb8fc861c0cbe32faea9b086cb190daca3",
+    "app/src/benchmark/java/com/libreplayer/benchmark/MemoryResourceProbeProvider.kt":
+        "e4c060d3719d3dc77a5c465aedab8e87b975d748ef9f090019f4622e6b1fd669",
+    "benchmark/src/main/java/com/libreplayer/benchmark/MemoryResourceBenchmark.kt":
+        "26aca27fd3753e57070747c094943064420b07ead85102bb223e63262c11b546",
+}
+MEMORY_RESOURCE_OVERLAY_PATHS = set(MEMORY_RESOURCE_OVERLAY_HASHES)
 
 
 class ReferenceError(RuntimeError):
@@ -244,6 +264,36 @@ def playback_load_harness_revision(hashes: dict[str, str]) -> str:
     return f"q1.1f-sha256:{digest.hexdigest()}"
 
 
+def validate_memory_resource_overlay_hashes(hashes: dict[str, str]) -> None:
+    if set(hashes) != MEMORY_RESOURCE_OVERLAY_PATHS:
+        raise ReferenceError(f"Memory/resource overlay paths differ from allowlist: {sorted(hashes)}")
+    mismatches = {
+        path: hashes[path]
+        for path, expected in MEMORY_RESOURCE_OVERLAY_HASHES.items()
+        if hashes[path] != expected
+    }
+    if mismatches:
+        raise ReferenceError(f"Memory/resource overlay content hash mismatch: {mismatches}")
+
+
+def validate_memory_resource_overlay(repo: Path) -> dict[str, str]:
+    hashes = {
+        path: file_sha256(repo / path)
+        for path in MEMORY_RESOURCE_OVERLAY_PATHS
+        if (repo / path).is_file()
+    }
+    validate_memory_resource_overlay_hashes(hashes)
+    return hashes
+
+
+def memory_resource_harness_revision(hashes: dict[str, str]) -> str:
+    digest = hashlib.sha256()
+    digest.update(f"playback-load:{ACCEPTED_PLAYBACK_LOAD_HARNESS}\n".encode())
+    for path in sorted(hashes):
+        digest.update(f"{path}:{hashes[path]}\n".encode())
+    return f"q1.1g-sha256:{digest.hexdigest()}"
+
+
 def ensure_external_worktree(repo: Path, worktree: Path) -> None:
     repo = repo.resolve()
     worktree = worktree.resolve()
@@ -281,7 +331,7 @@ def prepare(repo: Path, worktree: Path) -> dict:
     validate_harness_delta(delta)
     startup_hashes = validate_startup_overlay(repo)
     library_ui_hashes = validate_library_ui_overlay(repo)
-    playback_load_hashes = validate_playback_load_overlay(repo)
+    memory_resource_hashes = validate_memory_resource_overlay(repo)
     worktree.parent.mkdir(parents=True, exist_ok=True)
     git(repo, "worktree", "add", "--detach", str(worktree), REFERENCE_COMMIT, capture=False)
     try:
@@ -290,7 +340,7 @@ def prepare(repo: Path, worktree: Path) -> dict:
         for path in sorted(
             STARTUP_OVERLAY_PATHS |
             LIBRARY_UI_OVERLAY_PATHS |
-            PLAYBACK_LOAD_OVERLAY_PATHS
+            MEMORY_RESOURCE_OVERLAY_PATHS
         ):
             destination = worktree / path
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -300,7 +350,7 @@ def prepare(repo: Path, worktree: Path) -> dict:
             ALLOWED_OVERLAY_PATHS |
             STARTUP_OVERLAY_PATHS |
             LIBRARY_UI_OVERLAY_PATHS |
-            PLAYBACK_LOAD_OVERLAY_PATHS
+            MEMORY_RESOURCE_OVERLAY_PATHS
         )
         if applied != expected_applied:
             raise ReferenceError(f"Applied overlay differs from allowlist: {sorted(applied)}")
@@ -315,10 +365,10 @@ def prepare(repo: Path, worktree: Path) -> dict:
         return {
             "reference_git_commit": REFERENCE_COMMIT,
             "benchmark_foundation_commit": HARNESS_COMMIT,
-            "benchmark_harness_revision": playback_load_harness_revision(playback_load_hashes),
-            "predecessor_harness_revision": ACCEPTED_SYNCHRONIZATION_HARNESS,
-            "playback_instrumentation_sha256": playback_load_hashes[
-                "app/src/benchmark/java/com/libreplayer/benchmark/PlaybackLoadProbeProvider.kt"
+            "benchmark_harness_revision": memory_resource_harness_revision(memory_resource_hashes),
+            "predecessor_harness_revision": ACCEPTED_PLAYBACK_LOAD_HARNESS,
+            "memory_resource_instrumentation_sha256": memory_resource_hashes[
+                "app/src/benchmark/java/com/libreplayer/benchmark/MemoryResourceProbeProvider.kt"
             ],
             "measurement_hook_sha256": startup_hashes[STARTUP_HOOK_PATH],
             "worktree": str(worktree),
@@ -352,7 +402,7 @@ def cleanup(repo: Path, worktree: Path, gradle_user_home: Path | None = None) ->
         - ALLOWED_OVERLAY_PATHS
         - STARTUP_OVERLAY_PATHS
         - LIBRARY_UI_OVERLAY_PATHS
-        - PLAYBACK_LOAD_OVERLAY_PATHS
+        - MEMORY_RESOURCE_OVERLAY_PATHS
     )
     if unexpected:
         raise ReferenceError(f"Refusing to remove worktree with unexpected files: {sorted(unexpected)}")
