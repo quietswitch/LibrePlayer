@@ -297,3 +297,44 @@ Idle, Search, and Playback PSS/RSS/thread progressions have retained-memory nume
 Equivalent unsigned release APKs built with the checked-in toolchain are both 19,833,847 bytes: a 0-byte development delta. Independent build hashes differ because the release build is not byte-for-byte reproducible; byte size, not hash identity, is the authority.
 
 The curated reference, raw reference checkpoint sequences, peak summaries, definitions, APK size, limitations, and invalid apparatus history are in `performance-baselines/memory-resource-v1.0.4.json`. Accepted raw results and large traces remain ignored under `performance-results/q1.1g-authority-20260826-r4/`. Earlier host-scope, 100-step gesture, and AVD-shell failures remain separately preserved and excluded. LARGE is deferred because a generated/provisioned 10,000-track corpus was not already present and MEDIUM is the primary Q1.1g authority.
+
+## Baseline Profile authority
+
+**CONTROLLED BASELINE PROFILE A/B AUTHORITY — NOT A UNIVERSAL ANDROID PERFORMANCE CLAIM**
+
+Q1.1h adds the official `:baselineprofile` producer, keeps measurement in `:benchmark`, and consumes the generated profile from `:app`. It changes no production Kotlin behavior. The producer covers a usable populated Songs destination, real Songs browsing, real Albums/artwork browsing, real playback of `Track 00010`, and the real Now Playing surface. Generation and measurement used canonical MEDIUM (2,000 MediaStore tracks; fingerprint `c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f`) on the only authorized AVD, `LibrePlayer_Benchmark_API_36` (`emulator-5556`).
+
+Two official generation runs started from profile-free target builds. Strict reproducibility is **NOT REPRODUCIBLE**: the baseline outputs contain 1,692 and 1,690 unique rules, with 1,678 exact-rule intersections and 1,704 union rules. Normalizing away hotness flags leaves only two run-1-only asynchronous `LibraryRefreshStore` coroutine edges. Both runs have 441 baseline classes, identical package distribution, zero benchmark/test rules, and complete G1–G5 evidence. Startup output is also strictly **NOT REPRODUCIBLE**: both contain 1,321 rules and 322 classes, but two library-refresh identities trade with two artwork-loading class identities. These bounded differences are disclosed rather than treated as canonical equality.
+
+Generation 1 is the checked-in candidate because it is a valid profile-free run, completed all journeys, and is a strict superset of run 2's normalized baseline identities. Its source hashes are `72473b10ad3f9f2f5610d480db98e7bdf4ab125069f62876677a1ff2ba29a23d` for `baseline-prof.txt` and `a751050d1c54a65a99c1edee071dba66a1403314c0f6795984b64279852167b3` for `startup-prof.txt`. A nominal second run that packaged generation 1 as its predecessor is preserved separately and excluded.
+
+Packaging was checked with equivalent clean unsigned release builds. The profile-free APK is 19,833,847 bytes; the candidate APK is 19,883,057 bytes, a 49,210-byte (0.248%) increase. The candidate contributes all 1,692 LibrePlayer source rules to the merged ART profile and packages `assets/dexopt/baseline.prof`, `baseline.profm`, and ProfileInstaller metadata. The normal release remains version 1.0.4/code 5, non-debuggable, non-profileable, unsigned, non-minified, and without Internet or telemetry additions.
+
+The controlled same-build A/B uses `CompilationMode.None()` for disabled arms and `CompilationMode.Partial(BaselineProfileMode.Require, warmupIterations = 0)` for enabled arms. AndroidX Benchmark 1.4.1 rejects `Partial(Disable, 0)`; `None()` is the official no-precompilation control. Session order was disabled→enabled, enabled→disabled, disabled→enabled. Each side/session ran 10 startups, five Songs measures, five Albums measures, and one real playback/Now Playing correctness measure, preserving 126 traces total. All six correctness measures passed. ART proof is explicit: all disabled arms ended at `verify`; all enabled arms reported ProfileInstaller success and ended at `speed-profile`.
+
+| Metric | Profile disabled | Profile enabled | Enabled delta | Paired direction | Finding |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Startup TTID | 431.013 ms | 427.037 ms | -0.92% | 3/3 lower | No credible benefit; inside disabled spread |
+| Startup TTFD | 626.007 ms | 553.952 ms | -11.51% | 3/3 lower | Credible benefit |
+| Songs frame CPU P50 / P90 / P95 / P99 | 3.650 / 4.560 / 5.278 / 6.478 ms | 3.074 / 3.739 / 4.037 / 5.309 ms | -15.79% / -18.01% / -23.53% / -18.04% | 3/3 lower at every percentile | Credible benefit |
+| Albums frame CPU P50 / P90 / P95 / P99 | 3.341 / 4.138 / 4.553 / 5.476 ms | 2.730 / 3.283 / 3.514 / 4.706 ms | -18.29% / -20.66% / -22.81% / -14.05% | 3/3 lower at every percentile | Credible benefit |
+
+Frame-overrun metrics support the central result, but noisy Albums P99 improved in only two of three pairs and is not independent high-tail authority. No critical regression was observed. The Q1.1h decision is **ACCEPT AND SHIP PROFILE**: strict generation variance is bounded and transparent, while packaged delivery, ART application, TTFD benefit, broad scrolling-frame benefit, and real playback correctness are independently established.
+
+Regenerate when startup/navigation, Songs/Albums rendering, playback/Now Playing entry, or the profile toolchain changes. Begin a reproducibility audit with no active app candidate, run the official task twice, freeze each output before the next build, apply the strict comparison, inspect the packaged ART profile, and rerun the balanced A/B before replacement:
+
+```powershell
+$env:ANDROID_SERIAL = "emulator-5556"
+.\gradlew.bat :app:generateBaselineProfile --console=plain
+
+python tools/performance-reference/baseline_profile_authority.py run `
+  --adb "$env:ANDROID_HOME/platform-tools/adb.exe" `
+  --serial emulator-5556 `
+  --dataset tools/performance-fixtures/generated/MEDIUM `
+  --target-apk app/build/outputs/apk/benchmarkRelease/app-benchmarkRelease.apk `
+  --test-apk benchmark/build/outputs/apk/benchmarkRelease/benchmark-benchmarkRelease.apk `
+  --result-dir performance-results/RUN_ID/session-1/disabled `
+  --channel disabled --session 1 --side 1
+```
+
+Run all six sides in the enforced order, then use `python tools/performance-reference/baseline_profile_authority.py compare --results-root performance-results/RUN_ID`. The concise authority, exact distributions, hashes, limitations, and invalid-attempt exclusions are in `performance-baselines/baseline-profile-authority.json`. Accepted raw generation evidence remains ignored under `performance-results/q1.1h-authority-20260828/`; A/B results and Perfetto traces remain ignored under `performance-results/q1.1h-authority-20260829-ab/`.

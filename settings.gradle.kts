@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "LibrePlayer"
 include(":app")
 include(":benchmark")
+include(":baselineprofile")

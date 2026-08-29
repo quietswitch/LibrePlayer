@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED BASELINE PROFILE A/B AUTHORITY — NOT A UNIVERSAL ANDROID PERFORMANCE CLAIM",
+  "decision": "ACCEPT AND SHIP PROFILE",
+  "scope": "Q1.1h Baseline Profile Authority only",
+  "development_start_commit": "43ac8818a48292784ef7cddf8ce4e2d8f0f34dc7",
+  "immutable_reference": {
+    "tag": "v1.0.4",
+    "tag_object": "71886ff2431cb3b25c956c140f23ebd3d8c1dcc9",
+    "commit": "d2c212640ea3955591799a21d5bd8e382a628a57"
+  },
+  "toolchain": {
+    "android_gradle_plugin": "9.1.0",
+    "gradle": "9.3.1",
+    "kotlin": "2.3.10",
+    "androidx_benchmark": "1.4.1",
+    "baseline_profile_plugin": "1.5.0-rc02",
+    "profile_installer": "1.4.1",
+    "producer_module": ":baselineprofile",
+    "consumer_module": ":app",
+    "measurement_module": ":benchmark"
+  },
+  "apparatus": {
+    "generator_sha256": "98bea321835e7323b1c0105699b257129495260e17c4a0b1490d6eed0485463d",
+    "benchmark_sha256": "f57953a230cb37758b1ff9e9f2dc7210da83b0a0cc306da96812d3dbea542cca",
+    "journeys_sha256": "9c95ee4e0c83d18bea10605af0de1bc5db404ad9a7a614af7844778d9129ba4c",
+    "runner_sha256": "7fa0c34b54f74619b29bdbf9cf0efb77592d9887f6a2461af4d6a3ff9b90515f",
+    "production_kotlin_changes": 0,
+    "official_generation_task": ":app:generateBaselineProfile",
+    "generated_source_directory": "app/src/main/generated/baselineProfiles"
+  },
+  "dataset": {
+    "profile": "MEDIUM",
+    "tracks": 2000,
+    "fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f",
+    "fixture_path": "audio/artist-00010/album-00010/disc-01/track-00010.mp3",
+    "fixture_title": "Track 00010",
+    "source": "public Music storage and MediaStore; Room was not seeded"
+  },
+  "device": {
+    "serial": "emulator-5556",
+    "physical_device_refused": true,
+    "avd": "LibrePlayer_Benchmark_API_36",
+    "android": 16,
+    "api": 36,
+    "abi": "x86_64",
+    "resolution": "1080x2160",
+    "density_dpi": 440,
+    "ram_kb": 2018816,
+    "locale": "en-US",
+    "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:16/BE2A.250530.026.F3/13894323:userdebug/dev-keys"
+  },
+  "journeys": {
+    "G1": "usable populated Songs destination",
+    "G2": "real Songs browse and scroll",
+    "G3": "real Albums browse, scroll, and artwork loading",
+    "G4": "real playback of Track 00010 through LibrePlayer playback authority",
+    "G5": "real Now Playing surface showing Track 00010"
+  },
+  "generation_reproducibility": {
+    "policy": "Two independent profile-free target builds; exact text first, canonical sorted rules second, normalized rule identity diagnostic only. Any membership difference is NOT REPRODUCIBLE.",
+    "baseline_profile": {
+      "classification": "NOT REPRODUCIBLE",
+      "run_1": {
+        "rules": 1692,
+        "bytes": 213592,
+        "sha256": "72473b10ad3f9f2f5610d480db98e7bdf4ab125069f62876677a1ff2ba29a23d",
+        "canonical_sha256": "5b673d1a7a34ee20996bfcd983a85c58355bc02e51fa6bf1e8a4191d42b002e2",
+        "normalized_identity_sha256": "2d87ff5e0dec12196cafc7daae482b6d471eeb5b27859f00510b003997b8600d",
+        "classes": 441,
+        "s_flag_rules": 833
+      },
+      "run_2": {
+        "rules": 1690,
+        "bytes": 213326,
+        "sha256": "ac44ebea794fa4a8e3244dcbd22c41186a4dc82c40e7dabe3efff8f6743e375d",
+        "canonical_sha256": "938495bcd78fade3782f9378f7f4cdd34a235c3e836ec0483235e7c3c33eb219",
+        "normalized_identity_sha256": "584dc7deced7dc8251b997da7351fc1b54ea068df6a655af631ce24fa1f9cc82",
+        "classes": 441,
+        "s_flag_rules": 839
+      },
+      "full_rule_intersection": 1678,
+      "full_rule_union": 1704,
+      "full_rule_jaccard": 0.984741784,
+      "normalized_run_1_only": [
+        "Lcom/libreplayer/data/repository/LibraryRefreshStore$lastFullReconciliationAtMillis$1;->invokeSuspend(Ljava/lang/Object;)Ljava/lang/Object;",
+        "Lcom/libreplayer/data/repository/LibraryRefreshStore$mediaStoreCheckpoint$1;->invokeSuspend(Ljava/lang/Object;)Ljava/lang/Object;"
+      ],
+      "normalized_run_2_only": [],
+      "finding": "Strict identity differs by two asynchronous LibraryRefreshStore coroutine edges. Class count, package distribution, G1-G5 completion, and exclusion checks are identical; remaining text differences are H/P/S flag shifts."
+    },
+    "startup_profile": {
+      "classification": "NOT REPRODUCIBLE",
+      "run_1": {
+        "rules": 1321,
+        "bytes": 157651,
+        "sha256": "a751050d1c54a65a99c1edee071dba66a1403314c0f6795984b64279852167b3",
+        "canonical_sha256": "2167e8cac5c1b0c58b966eff97d8227784a8c908c46ec2be344b0ff53c3e6fcc",
+        "normalized_identity_sha256": "f135b83a0ab90e61dbf1c02e127b90d7a84d07bd410cb27d6c9c28be875de687",
+        "classes": 322
+      },
+      "run_2": {
+        "rules": 1321,
+        "bytes": 157483,
+        "sha256": "d5330cee9b699233f0a342e9ea145ce7ce1aadbd4a21ae517a1711a07cf08fe7",
+        "canonical_sha256": "4e6bf04651404fae84933536a504d9949a19c19f1f754d820bae5f40d7f26024",
+        "normalized_identity_sha256": "fb7e19e936e7ad63983375b67a4a88aa00215c11242f088e8fa5a500c00adcf8",
+        "classes": 322
+      },
+      "full_rule_intersection": 1310,
+      "full_run_1_only": 11,
+      "full_run_2_only": 11,
+      "normalized_run_1_only": [
+        "Lcom/libreplayer/data/repository/LibraryRefreshStore$lastFullReconciliationAtMillis$1;->invokeSuspend(Ljava/lang/Object;)Ljava/lang/Object;",
+        "Lcom/libreplayer/data/repository/LibraryRefreshStore$mediaStoreCheckpoint$1;->invokeSuspend(Ljava/lang/Object;)Ljava/lang/Object;"
+      ],
+      "normalized_run_2_only": [
+        "Lcom/libreplayer/ui/components/ArtworkLoader;",
+        "Lcom/libreplayer/ui/components/ArtworkLoader$load$3;"
+      ],
+      "finding": "Strict identity differs at bounded asynchronous library-refresh and artwork-loading edges; class count, package distribution, G1-G5 completion, and exclusion checks are identical."
+    },
+    "package_distribution_per_baseline_run": {
+      "app": 15,
+      "data": 98,
+      "library": 16,
+      "media": 26,
+      "navigation": 95,
+      "settings": 5,
+      "ui": 181,
+      "util": 5
+    },
+    "excluded_benchmark_or_test_rules": 0,
+    "accepted_evidence_roots": [
+      "performance-results/q1.1h-authority-20260828/generation-1",
+      "performance-results/q1.1h-authority-20260828/generation-2"
+    ],
+    "invalid_attempt": {
+      "root": "performance-results/q1.1h-authority-20260828/invalid-generation-attempts/generation-2-packaged-predecessor",
+      "reason": "Nominal run 2 packaged run 1 as a predecessor and therefore was not profile-free; it is preserved but excluded."
+    }
+  },
+  "candidate": {
+    "selection": "generation-1",
+    "reason": "Valid profile-free run, complete G1-G5 coverage, and a strict superset of run 2's normalized baseline identities; no evidence favored discarding its two additional asynchronous repository edges.",
+    "baseline_path": "app/src/main/generated/baselineProfiles/baseline-prof.txt",
+    "baseline_sha256": "72473b10ad3f9f2f5610d480db98e7bdf4ab125069f62876677a1ff2ba29a23d",
+    "startup_path": "app/src/main/generated/baselineProfiles/startup-prof.txt",
+    "startup_sha256": "a751050d1c54a65a99c1edee071dba66a1403314c0f6795984b64279852167b3"
+  },
+  "packaging": {
+    "profile_disabled_release": {
+      "bytes": 19833847,
+      "sha256": "cccbe080b1fafcbae1718e90c9c10beca86413c285d9045fd0f7d79a18a0eb3c",
+      "binary_baseline_prof_bytes": 12909,
+      "note": "Dependency profiles remain; the app candidate source was absent."
+    },
+    "profile_enabled_release": {
+      "bytes": 19883057,
+      "sha256": "daa99b7eaab86e3aba3f81e4e205366571e0167e2eaaec794f0d076ba8146edd",
+      "binary_baseline_prof_bytes": 13937,
+      "binary_baseline_profm_bytes": 695,
+      "merged_libreplayer_rules": 1692
+    },
+    "apk_delta_bytes": 49210,
+    "apk_delta_percent": 0.248,
+    "benchmark_release_apk_sha256": "7c715da4b61ffea2e96d962f59216f6fbe2fa4400fcff7a86be8ec5c0df468c1",
+    "benchmark_test_apk_sha256": "e9a9cc64d1430d88ad2bf78f092477ba312166aabb35d18d703116e99ca5907a",
+    "profile_installer_metadata_present": true
+  },
+  "ab_method": {
+    "comparison": "same current source and identical app/test APK hashes; only Macrobenchmark compilation state differs",
+    "disabled": "CompilationMode.None(); resets compilation and performs no pre-compilation",
+    "enabled": "CompilationMode.Partial(BaselineProfileMode.Require, warmupIterations = 0); missing profile installation is a test failure",
+    "session_order": [["disabled", "enabled"], ["enabled", "disabled"], ["disabled", "enabled"]],
+    "per_side": {"startup_iterations": 10, "songs_iterations": 5, "albums_iterations": 5, "playback_correctness_iterations": 1, "traces": 21},
+    "total_traces": 126,
+    "playback_and_now_playing_passes": "6/6",
+    "results_root": "performance-results/q1.1h-authority-20260829-ab"
+  },
+  "ab_results": {
+    "startup": {
+      "ttid_ms": {"disabled": 431.0129345, "enabled": 427.037154, "delta_ms": -3.9757805, "delta_percent": -0.922427, "enabled_lower_sessions": "3/3", "classification": "NO CREDIBLE BENEFIT; delta is inside disabled between-session spread"},
+      "ttfd_ms": {"disabled": 626.0070435, "enabled": 553.95235, "delta_ms": -72.0546935, "delta_percent": -11.510205, "enabled_lower_sessions": "3/3", "classification": "CREDIBLE BENEFIT"}
+    },
+    "songs_frame_duration_cpu_ms": {
+      "P50": {"disabled": 3.650278, "enabled": 3.073974, "delta_percent": -15.78795, "enabled_lower_sessions": "3/3"},
+      "P90": {"disabled": 4.5603604, "enabled": 3.7391608, "delta_percent": -18.00734, "enabled_lower_sessions": "3/3"},
+      "P95": {"disabled": 5.27837345, "enabled": 4.0365125, "delta_percent": -23.52734, "enabled_lower_sessions": "3/3"},
+      "P99": {"disabled": 6.47811285, "enabled": 5.30923902, "delta_percent": -18.04343, "enabled_lower_sessions": "3/3"}
+    },
+    "albums_frame_duration_cpu_ms": {
+      "P50": {"disabled": 3.340857, "enabled": 2.7297775, "delta_percent": -18.2911, "enabled_lower_sessions": "3/3"},
+      "P90": {"disabled": 4.1376098, "enabled": 3.2827244, "delta_percent": -20.66133, "enabled_lower_sessions": "3/3"},
+      "P95": {"disabled": 4.5529596, "enabled": 3.51436215, "delta_percent": -22.81148, "enabled_lower_sessions": "3/3"},
+      "P99": {"disabled": 5.4755828, "enabled": 4.7062996, "delta_percent": -14.04934, "enabled_lower_sessions": "3/3"}
+    },
+    "frame_overrun": {
+      "songs": "All P50/P90/P95/P99 session pairs improve; P99 remains noisy.",
+      "albums": "P50/P90/P95 improve in 3/3 sessions; P99 improves in 2/3 and is not treated as independent high-tail authority."
+    },
+    "regressions": "No critical regression observed."
+  },
+  "art_proof": {
+    "disabled": "After reset, dexopt status=verify reason=cmdline; ProfileInstaller skips installation.",
+    "enabled": "ProfileInstaller RESULT_INSTALL_SUCCESS; artd chooses speed-profile and dex2oat receives a profile file; final dexopt status=speed-profile reason=cmdline.",
+    "all_enabled_sessions": "3/3",
+    "all_disabled_sessions": "3/3"
+  },
+  "invalid_apparatus_history": [
+    "Baseline Profile plugin 1.4.1 was incompatible with AGP 9.1; official plugin 1.5.0-rc02 is used.",
+    "An initial architecture placed production generation in :benchmark; corrected to the dedicated official :baselineprofile producer before accepted evidence.",
+    "The sandbox default debug-keystore path was unwritable; test-host user state was redirected without changing production configuration.",
+    "A UTP C:\\tmp host-path failure was an environment failure and is excluded.",
+    "An AVD process exit interrupted apparatus work; completed evidence was recovered or the incomplete side alone was resumed.",
+    "A fixed-scroll journey failed to reach Track 00010; deterministic Search selection replaced it.",
+    "strictStability exposed a viewport mismatch in the composite journey; startup retains strict stability and critical journeys use bounded repeated collection.",
+    "Stateful producer replay made a combined journey invalid; journeys were made independently repeatable.",
+    "The Search result text node was not clickable; the accepted journey selects its clickable ancestor.",
+    "Search/miniplayer route state initially prevented real Now Playing entry; bounded Back coordinate delivery established the real route transition.",
+    "Pause accessibility text was unreliable and is not playback authority.",
+    "A stale Media3 mini-player UI node was handled with bounded reacquisition.",
+    "Keyboard/Back behavior varied during route exit; accepted evidence requires the EditText to disappear and Songs to return.",
+    "A failed gesture injection is rejected rather than counted; accepted journeys require successful normalized swipes.",
+    "A route-exit coordinate delivery miss was corrected with a bounded three-attempt retry and explicit route-state assertion.",
+    "CompilationMode.Partial(BaselineProfileMode.Disable, warmupIterations=0) is rejected by AndroidX Benchmark 1.4.1; the documented control is CompilationMode.None().",
+    "An initial MediaSession assertion expected numeric state=3, while API 36 renders PLAYING(3); corrected before accepted measurements.",
+    "Earlier cutoff-coordinate and run-1 route-exit delivery experiments are preserved outside accepted roots and excluded.",
+    "The packaged-predecessor generation attempt is preserved and excluded from reproducibility authority."
+  ],
+  "release_constraints": {
+    "version_name": "1.0.4",
+    "version_code": 5,
+    "minify_enabled": false,
+    "unsigned": true,
+    "release_debuggable": false,
+    "release_profileable": false,
+    "internet_permission": false,
+    "telemetry_added": false
+  },
+  "limitations": [
+    "Strict two-run text and canonical profile reproducibility was not achieved; bounded asynchronous rule membership is reported, not hidden.",
+    "TTID did not establish a credible benefit; TTFD and scrolling frame-duration results did.",
+    "Evidence is from one controlled API 36 x86_64 emulator, not physical-device, acoustic, thermal, battery, or universal Android authority.",
+    "R8/minification, LARGE, and new memory/resource authority are outside Q1.1h; Q1.1g remains authoritative for memory/resources.",
+    "D8 may discard generated synthetic signatures that do not map after bytecode rewriting; the packaged ART profile and speed-profile application are the delivery authority."
+  ],
+  "maintenance": {
+    "regenerate_when": ["startup or navigation flow changes", "Songs or Albums rendering changes materially", "playback/Now Playing entry changes", "AGP, AndroidX Benchmark, or Baseline Profile plugin changes"],
+    "review_rule": "Repeat two profile-free generations, preserve strict classification, inspect the packaged profile, then rerun the balanced A/B matrix before replacing the candidate."
+  }
+}

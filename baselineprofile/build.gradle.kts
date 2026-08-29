@@ -1,9 +1,10 @@
 plugins {
     alias(libs.plugins.android.test)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
-    namespace = "com.libreplayer.benchmark"
+    namespace = "com.libreplayer.baselineprofile"
     compileSdk = 36
 
     defaultConfig {
@@ -12,26 +13,16 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildTypes {
-        create("benchmark") {
-            isDebuggable = true
-            signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += listOf("release")
-        }
-        create("benchmarkRelease") {
-            isDebuggable = true
-            signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += listOf("release")
-        }
-    }
-
     targetProjectPath = ":app"
-    experimentalProperties["android.experimental.self-instrumenting"] = true
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
+
+baselineProfile {
+    useConnectedDevices = true
 }
 
 dependencies {
