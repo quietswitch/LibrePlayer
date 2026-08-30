@@ -40,6 +40,14 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
         }
+        create("physicalReference") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".physicalreference"
+            versionNameSuffix = "-physical-reference"
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {

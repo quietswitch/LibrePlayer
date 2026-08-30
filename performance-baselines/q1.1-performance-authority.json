@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "phase": "Q1.1",
+  "status": "CLOSED",
+  "close_decision": "Q1.1 Performance Authority is closed. No unresolved critical physical or controlled-environment performance/correctness issue remains.",
+  "closeout_parent_commit": "91cb4a2b5b29c073fc677df8a18eb677b6709092",
+  "closeout_commit": {
+    "selector": "SELF",
+    "subject": "Close Q1.1 performance authority",
+    "note": "SELF denotes the commit that first contains this manifest; its exact hash is reported after commit because a Git commit cannot contain its own hash."
+  },
+  "immutable_release_reference": {
+    "tag": "v1.0.4",
+    "peeled_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+    "version_name": "1.0.4",
+    "version_code": 5,
+    "unchanged": true
+  },
+  "authority_distinction": {
+    "controlled_emulator": "The canonical regression authorities use fixed deterministic fixtures and controlled emulator configurations described by each curated record.",
+    "physical": "PHYSICAL DEVICE REFERENCE — NOT A UNIVERSAL ANDROID PERFORMANCE REQUIREMENT",
+    "physical_role": "One non-destructive ARM64 same-device/model reference and broad directional sanity channel; it does not replace canonical MEDIUM or universalize device timings."
+  },
+  "authorities": {
+    "Q1.1a": {
+      "name": "Benchmark Foundation",
+      "final_commit": "304af67ad1efcbe0b4cdb9019cdaaf70c38c4a68",
+      "curated_baseline_filename": null,
+      "authority_files": ["STATUS.md", "benchmark/", "app/src/benchmark/AndroidManifest.xml"],
+      "classification": "BENCHMARK INFRASTRUCTURE AUTHORITY",
+      "principal_result": "Established the AndroidX Macrobenchmark module, release-like benchmark target, smoke benchmark, and dependency/toolchain foundation used by later Q1.1 phases.",
+      "principal_limitations": "Infrastructure validation alone creates no numeric performance baseline.",
+      "invoke_for_future_regressions": false,
+      "future_use": "Maintain as shared infrastructure; invoke the relevant later authority instead of treating Q1.1a smoke output as performance evidence."
+    },
+    "Q1.1b": {
+      "name": "Fixture & Reference Authority",
+      "final_commit": "2062962b759ab52d4297b8c71af7f5cf4a68febe",
+      "curated_baseline_filename": null,
+      "authority_files": [
+        "tools/performance-fixtures/profiles.json",
+        "tools/performance-fixtures/fixture_tool.py",
+        "tools/performance-fixtures/provision_android.py",
+        "tools/performance-reference/reference_tool.py",
+        "PERFORMANCE.md"
+      ],
+      "classification": "DETERMINISTIC FIXTURE + IMMUTABLE REFERENCE AUTHORITY",
+      "principal_result": "Established deterministic EMPTY through STRESS profiles, byte-level fixture fingerprints, guarded emulator-only provisioning, and the immutable v1.0.4 comparison worktree.",
+      "principal_limitations": "Fixture generation/provisioning time is not app performance; public-media cleanup is emulator-only and path constrained.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Use as the input/reference layer whenever a later controlled authority requires canonical fixtures or v1.0.4 comparison."
+    },
+    "Q1.1c": {
+      "name": "Startup Authority",
+      "final_commit": "3521f10db4f4ed5e6cba4730d847bc721b862fd9",
+      "curated_baseline_filename": "performance-baselines/startup-v1.0.4.json",
+      "classification": "CONTROLLED NUMERIC STARTUP REGRESSION AUTHORITY",
+      "principal_result": "Established cached MEDIUM cold-start reference distributions and fully-drawn semantics on the controlled API 28 emulator; curated reference medians are 1086.807 ms TTID and 1256.936 ms TTFD.",
+      "principal_limitations": "API 28 x86_64 emulator timing is controlled regression evidence, not universal device performance.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Invoke for startup, initial navigation, cached-library usability, and fully-drawn changes."
+    },
+    "Q1.1d": {
+      "name": "Library UI Authority",
+      "final_commit": "5ffd66a79b9cdebf38fbcb8d6fc0111c57cef2e6",
+      "curated_baseline_filename": "performance-baselines/library-ui-v1.0.4.json",
+      "classification": "SONGS/ALBUMS NUMERIC; SEARCH CORRECTNESS + TRACE; HOT RETURN LIMITED NUMERIC AUTHORITY",
+      "principal_result": "Established controlled MEDIUM Songs and Albums frame distributions, 450/450 Search query-state validations, and 120/120 hot-return cached-content validations across the balanced reference/development matrix.",
+      "principal_limitations": "Search frame samples are too sparse/noisy for numeric authority; hot-return frame timing is diagnostic and only TTID has limited numeric authority.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Invoke the affected Songs, Albums, Search, or hot-return journey for Compose/library UI changes."
+    },
+    "Q1.1e": {
+      "name": "Synchronization Authority",
+      "final_commit": "42a4b10ee28c0f70c051d3aa34f0c4fa44299c99",
+      "curated_baseline_filename": "performance-baselines/synchronization-v1.0.4.json",
+      "classification": "EXACT SYNCHRONIZATION CORRECTNESS; REBUILD NUMERIC; OTHER MUTATIONS LIMITED NUMERIC AUTHORITY",
+      "principal_result": "Established exact unchanged/add/delete/modify/rebuild catalog behavior and bounded MediaStore-to-Room timing with isolated deterministic mutations.",
+      "principal_limitations": "Host/emulator noise limits unchanged and mutation timing precision; SAF breadth and LARGE synchronization remain outside the accepted primary matrix.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Invoke for scanner, MediaStore, metadata refresh, rebuild, deletion, modification, and SAF synchronization changes."
+    },
+    "Q1.1f": {
+      "name": "Playback-Under-Load Authority",
+      "final_commit": "88d8553cbf151fbca90a73ba9a2132234550bfef",
+      "curated_baseline_filename": "performance-baselines/playback-under-load-v1.0.4.json",
+      "classification": "PLAYBACK CONTINUITY AUTHORITY + LIMITED NUMERIC LOAD AUTHORITY",
+      "principal_result": "All 120 primary refresh/add/rebuild-under-playback operations preserved Media3 session identity, position progress, connection, and catalog correctness with zero player errors or discontinuities.",
+      "principal_limitations": "Emulator-observable session continuity is not acoustic dropout, DAC, Bluetooth, or physical AudioTrack authority; timing spread limits numeric precision.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Invoke for PlaybackService, Media3/session, queue, background playback, scanner-under-playback, and audio lifecycle changes."
+    },
+    "Q1.1g": {
+      "name": "Memory / Resource Authority",
+      "final_commit": "43ac8818a48292784ef7cddf8ce4e2d8f0f34dc7",
+      "curated_baseline_filename": "performance-baselines/memory-resource-v1.0.4.json",
+      "classification": "RETAINED-MEMORY NUMERIC; LIMITED SONGS/ALBUMS; RESOURCE CORRECTNESS + TRACE AUTHORITY",
+      "principal_result": "Thirty journeys, 264 settled checkpoints, and 30 traces showed warm/plateau rather than ratchet behavior; playback resources were correct at every active and post-stop checkpoint.",
+      "principal_limitations": "Shell could not count FDs on API 36; no heap ownership/leak causation or universal physical memory claim is established.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Invoke the bounded affected channel for allocation-sensitive Search, Songs, Albums/artwork, playback, lifecycle, or cache changes."
+    },
+    "Q1.1h": {
+      "name": "Baseline Profile Authority",
+      "final_commit": "91cb4a2b5b29c073fc677df8a18eb677b6709092",
+      "curated_baseline_filename": "performance-baselines/baseline-profile-authority.json",
+      "classification": "CONTROLLED BASELINE PROFILE A/B AUTHORITY",
+      "principal_result": "ACCEPT AND SHIP PROFILE: packaged ART delivery and speed-profile application passed; controlled A/B showed credible TTFD and broad Songs/Albums frame improvement with real playback correctness.",
+      "principal_limitations": "Strict generation reproducibility is not established, TTID benefit is not credible, and the emulator result is not universal Android performance.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Reassess/regenerate only when startup/navigation, Songs/Albums rendering, playback/Now Playing entry, hot-path architecture, or the profile toolchain materially changes."
+    },
+    "Q1.1i": {
+      "name": "Physical Reference & Q1.1 Close",
+      "final_commit": "SELF",
+      "curated_baseline_filename": "performance-baselines/physical-reference.json",
+      "classification": "HARDWARE-SPECIFIC PHYSICAL NUMERIC/CORRECTNESS/TRACE REFERENCE",
+      "principal_result": "A side-by-side isolated build ran on ARM64 Samsung hardware: five profiled cold starts, three Songs and Albums journeys, continuous two-minute background playback, three unchanged refreshes, one isolated rebuild, five resource checkpoints, and a tiny 20-start profile A/B completed without a critical app failure. ART reached speed-profile.",
+      "principal_limitations": "One device and a private real-world 940-track library do not establish universal or canonical MEDIUM authority. TTID reversed in the tiny A/B while TTFD retained the accepted direction.",
+      "invoke_for_future_regressions": true,
+      "future_use": "Invoke as a bounded non-destructive physical sanity/reference pass for broad release candidates, not for every commit."
+    }
+  },
+  "future_regression_routing": [
+    {
+      "change": "startup, initial navigation, or fully-drawn semantics",
+      "authorities": ["Q1.1c"],
+      "optional_followup": ["Q1.1h when the profile hot path changes"]
+    },
+    {
+      "change": "Songs, Albums, or general Compose library UI",
+      "authorities": ["Q1.1d relevant journey"],
+      "optional_followup": ["Q1.1g bounded resource channel when allocation-sensitive"]
+    },
+    {
+      "change": "Search",
+      "authorities": ["Q1.1d Search correctness + trace"],
+      "optional_followup": ["Q1.1g Search retained-memory channel"]
+    },
+    {
+      "change": "scanner, MediaStore, metadata refresh, rebuild, deletion, modification, or SAF",
+      "authorities": ["Q1.1e"]
+    },
+    {
+      "change": "PlaybackService, Media3/session, queue, background playback, or audio lifecycle",
+      "authorities": ["Q1.1f"]
+    },
+    {
+      "change": "artwork or cache behavior",
+      "authorities": ["Q1.1d Albums"],
+      "optional_followup": ["Q1.1g Albums/resource channel"]
+    },
+    {
+      "change": "hot-path architecture or profile toolchain",
+      "authorities": ["Q1.1h reassessment/regeneration and balanced A/B"]
+    },
+    {
+      "change": "broad release candidate",
+      "authorities": ["Q1.1i bounded physical reference"],
+      "note": "Do not run every Q1.1 suite for every commit."
+    }
+  ],
+  "deferred_not_q1_1_blockers": [
+    "LARGE 10,000-track corpus performance authority where not already established",
+    "physical FD numeric authority",
+    "acoustic dropout and exact AudioTrack underrun authority",
+    "battery consumption authority",
+    "thermal performance authority",
+    "broad OEM/device matrix",
+    "R8/minification performance authority",
+    "Bluetooth-specific audio continuity",
+    "exact physical DAC/output-path behavior",
+    "universal Android performance thresholds"
+  ],
+  "close_criteria": {
+    "q1_1a_through_h_remain_accepted": true,
+    "physical_execution_non_destructive": true,
+    "major_physical_journeys_correct": true,
+    "critical_physical_only_regression": false,
+    "baseline_profile_applied_on_arm64": true,
+    "physical_authority_strength_bounded": true,
+    "future_regression_routing_documented": true,
+    "deferrals_explicit": true,
+    "release_and_privacy_invariants_intact": true
+  }
+}

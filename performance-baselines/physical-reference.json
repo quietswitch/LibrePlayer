@@ -1,0 +1,347 @@
+{
+  "schema_version": 1,
+  "authority": "PHYSICAL DEVICE REFERENCE — NOT A UNIVERSAL ANDROID PERFORMANCE REQUIREMENT",
+  "phase": "Q1.1i",
+  "measured_utc_date": "2026-08-30",
+  "source_commit": "91cb4a2b5b29c073fc677df8a18eb677b6709092",
+  "immutable_reference": {
+    "tag": "v1.0.4",
+    "peeled_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+    "unchanged": true
+  },
+  "physical_safety": {
+    "existing_user_package": {
+      "application_id": "com.libreplayer",
+      "present_before_and_after": true,
+      "version_name": "1.0.4",
+      "version_code": 5,
+      "installer_source": "shell",
+      "installer_package": null,
+      "first_install_time": "2026-03-31 14:52:45",
+      "last_update_time_before_and_after": "2026-08-24 12:07:58",
+      "data_directory_semantics": "/data/user/0/com.libreplayer",
+      "uid": 10361,
+      "installed_apk_sha256": "ec42f3beb65fa4daaea21817ca5a550e3888afec5a297792114256f192e54bb3",
+      "signer_sha256": "4782d567730993ba66fc4bddb0088de5c8b2e8b63e1244904f0c07020f1bf953",
+      "mutations_performed": []
+    },
+    "measured_reference_package": {
+      "application_id": "com.libreplayer.physicalreference",
+      "version_name": "1.0.4-physical-reference",
+      "version_code": 5,
+      "uid": 10359,
+      "data_directory_semantics": "/data/user/0/com.libreplayer.physicalreference",
+      "apk_bytes": 19895421,
+      "apk_sha256": "2a902578a616ad7d64cb46343b5208a90075386da2c4d23be208faa3710574cc",
+      "signer_sha256": "b83855bf71057705ba5d2e1064631b484b55e951121b7c62de0e505ab23fefa6",
+      "build_type": "physicalReference",
+      "production_kotlin_delta": false,
+      "final_local_rebuild": {
+        "application_id": "com.libreplayer.physicalreference",
+        "apk_bytes": 19895421,
+        "apk_sha256": "167ad03646acf262c6d70f16b39e7a8283463b0271bac02f017be4c970355e12",
+        "signer_sha256": "4782d567730993ba66fc4bddb0088de5c8b2e8b63e1244904f0c07020f1bf953",
+        "note": "The disposable debug signer is host-environment dependent. Application-ID isolation, not signer difference, is the invariant that prevents replacing com.libreplayer."
+      }
+    },
+    "benchmark_helper_package": {
+      "application_id": "com.libreplayer.benchmark",
+      "uid_after_final_install": 10362,
+      "data_directory_semantics": "/data/user/0/com.libreplayer.benchmark",
+      "final_apk_bytes": 40158307,
+      "final_apk_sha256": "52c5d229133ca5cb2abc6b3ad75730cc6bc089eb4ba37b610f77a94fcc40137b",
+      "final_signer_sha256": "4782d567730993ba66fc4bddb0088de5c8b2e8b63e1244904f0c07020f1bf953",
+      "disposable_test_data_only": true
+    },
+    "isolation_proof": {
+      "application_ids_distinct": true,
+      "uids_distinct": true,
+      "data_directories_distinct": true,
+      "room_preferences_and_playlists_are_package_private": true,
+      "reference_artifact_can_update_or_replace_com_libreplayer": false,
+      "reason_replacement_is_impossible": "Android package updates require the same application ID; the measured target uses com.libreplayer.physicalreference. Its measured signer also differed from the installed user package.",
+      "uninstalling_reference_can_remove_user_data": false,
+      "reason_uninstall_is_isolated": "Android uninstalls package-private state by application ID; com.libreplayer.physicalreference and com.libreplayer own different package namespaces, UIDs, and /data/user/0 directories.",
+      "user_media_mutated": false,
+      "user_package_uninstalled_cleared_updated_or_replaced": false
+    },
+    "unsafe_existing_benchmark_target": {
+      "application_id": "com.libreplayer",
+      "signer_sha256": "4782d567730993ba66fc4bddb0088de5c8b2e8b63e1244904f0c07020f1bf953",
+      "could_replace_user_package": true,
+      "installed_on_physical_device": false
+    },
+    "final_cleanup": {
+      "com_libreplayer_present": true,
+      "com_libreplayer_physicalreference_uninstalled": true,
+      "com_libreplayer_benchmark_uninstalled": true,
+      "user_package_identity_unchanged": true,
+      "physical_media_track_count_before_and_after": 940,
+      "note": "Only the disposable side-package state was removed. Existing LibrePlayer package data and MediaStore content remained present."
+    }
+  },
+  "device": {
+    "hardware": true,
+    "qemu": false,
+    "manufacturer": "samsung",
+    "model": "SM-S908U",
+    "android_version": "16",
+    "api_level": 36,
+    "abi": "arm64-v8a",
+    "build_fingerprint": "samsung/b0qsqw/b0q:16/BP2A.250605.031.A3/S908USQSAGZF3:user/release-keys",
+    "ram_total_kb": 7394128,
+    "display_physical_resolution": "720x1544",
+    "display_density_dpi": 300,
+    "refresh_policy_changed_for_measurement": false,
+    "observed_refresh_rate_hz": {
+      "pre_run": 60.0,
+      "post_run_adaptive": 48.0
+    },
+    "battery_percent": {
+      "pre_run": 80,
+      "post_run": 79
+    },
+    "usb_powered": true,
+    "battery_status": "not charging",
+    "battery_temperature_c": {
+      "pre_run": 29.4,
+      "post_run": 28.8
+    },
+    "thermal_status_pre_and_post": 0,
+    "thermal_descriptors_only": true,
+    "available_storage_kb": {
+      "pre_run": 57794688,
+      "post_run": 57611496
+    },
+    "battery_and_thermal_authority": false
+  },
+  "physical_library": {
+    "semantics": "REAL-WORLD PHYSICAL REFERENCE",
+    "canonical_medium_authority": false,
+    "track_count": 940,
+    "approximate_unique_album_ids": 76,
+    "approximate_unique_artist_ids": 37,
+    "music_files_added_deleted_or_modified": false,
+    "committed_personal_metadata": false,
+    "privacy_note": "Only aggregate MediaStore counts are retained. Titles, artists, filenames, paths, playlist names, content URIs, and the device serial are excluded."
+  },
+  "baseline_profile_arm64": {
+    "baseline_rules": 1692,
+    "baseline_source_sha256": "72473b10ad3f9f2f5610d480db98e7bdf4ab125069f62876677a1ff2ba29a23d",
+    "startup_rules": 1321,
+    "startup_source_sha256": "a751050d1c54a65a99c1edee071dba66a1403314c0f6795984b64279852167b3",
+    "regenerated": false,
+    "packaged_art_profile_entries": [
+      "assets/dexopt/baseline.prof",
+      "assets/dexopt/baseline.profm",
+      "ProfileInstaller metadata"
+    ],
+    "merged_profile_total_rules": 6597,
+    "merged_profile_libreplayer_rules": 1692,
+    "arm64_install_succeeded": true,
+    "profileinstaller_result": "RESULT_INSTALL_SUCCESS",
+    "dexopt_abi": "arm64",
+    "dexopt_compiler_filter": "speed-profile",
+    "artd_profile_file_observed": true,
+    "classification": "PHYSICAL CORRECTNESS + TRACE REFERENCE"
+  },
+  "journeys": {
+    "cold_start_profiled": {
+      "iterations": 5,
+      "compilation_mode": "CompilationMode.Partial(BaselineProfileMode.Require, warmupIterations = 0)",
+      "startup_mode": "COLD",
+      "time_to_initial_display_ms": {
+        "raw": [377.450677, 391.840364, 400.456718, 401.170104, 382.419063],
+        "median": 391.840364,
+        "minimum": 377.450677,
+        "maximum": 401.170104
+      },
+      "time_to_full_display_ms": {
+        "raw": [508.593697, 500.233072, 528.619687, 502.316041, 511.852552],
+        "median": 508.593697,
+        "minimum": 500.233072,
+        "maximum": 528.619687
+      },
+      "usable_songs_assertions_passed": 5,
+      "trace_count": 5,
+      "classification": "PHYSICAL NUMERIC REFERENCE"
+    },
+    "songs_browsing": {
+      "iterations": 3,
+      "semantic_gestures_per_iteration": 6,
+      "functional": true,
+      "frame_duration_cpu_ms_median_of_iteration_percentiles": {
+        "P50": 11.815599,
+        "P90": 19.668906,
+        "P95": 22.820638,
+        "P99": 29.5245357
+      },
+      "frame_overrun_ms_median_of_iteration_percentiles": {
+        "P50": -2.9247695,
+        "P90": 5.8183795,
+        "P95": 8.88633925,
+        "P99": 16.02796364
+      },
+      "frame_samples_per_iteration": [680, 676, 678],
+      "trace_count": 3,
+      "classification": "LIMITED PHYSICAL NUMERIC REFERENCE"
+    },
+    "albums_artwork_browsing": {
+      "iterations": 3,
+      "semantic_gestures_per_iteration": 6,
+      "albums_loaded": true,
+      "artwork_path_executed": true,
+      "functional": true,
+      "crash": false,
+      "obvious_pathological_stall": false,
+      "frame_duration_cpu_ms_median_of_iteration_percentiles": {
+        "P50": 10.795261,
+        "P90": 20.1086774,
+        "P95": 22.374843,
+        "P99": 26.8699688
+      },
+      "frame_overrun_ms_median_of_iteration_percentiles": {
+        "P50": -3.742399,
+        "P90": 6.06904,
+        "P95": 8.0959316,
+        "P99": 12.5203504
+      },
+      "frame_samples_per_iteration": [625, 621, 623],
+      "trace_count": 3,
+      "classification": "LIMITED PHYSICAL NUMERIC REFERENCE"
+    },
+    "real_playback": {
+      "duration_background_ms": 120000,
+      "playback_service_active": true,
+      "media_session_owned_by_reference_package": true,
+      "media_identity_stable_internally": true,
+      "position_progressed": true,
+      "player_error": false,
+      "background_survived": true,
+      "active_notification_observed": true,
+      "personal_media_identity_retained": false,
+      "trace_count": 1,
+      "classification": "PHYSICAL CORRECTNESS + TRACE REFERENCE"
+    },
+    "playback_plus_unchanged_refresh": {
+      "refresh_count": 3,
+      "all_completed": true,
+      "playback_continuous": true,
+      "media_identity_stable_internally": true,
+      "position_progressed_after_each": true,
+      "player_error": false,
+      "user_media_mutated": false,
+      "classification": "PHYSICAL CORRECTNESS + TRACE REFERENCE"
+    },
+    "playback_plus_full_rebuild": {
+      "rebuild_count": 1,
+      "isolated_database_only": true,
+      "completed": true,
+      "playback_continuous": true,
+      "catalog_repopulated": true,
+      "application_error": false,
+      "classification": "PHYSICAL CORRECTNESS + TRACE REFERENCE"
+    }
+  },
+  "resource_sanity": {
+    "purpose": "PHYSICAL RESOURCE SANITY",
+    "checkpoints": [
+      {"label": "settled-idle", "pss_kb": 159123, "rss_kb": 259116, "threads": 57},
+      {"label": "after-songs-and-albums", "pss_kb": 189750, "rss_kb": 293312, "threads": 54},
+      {"label": "during-background-playback", "pss_kb": 109239, "rss_kb": 212304, "threads": 47},
+      {"label": "after-isolated-rebuild", "pss_kb": 164002, "rss_kb": 270444, "threads": 52},
+      {"label": "post-playback-settle", "pss_kb": 117990, "rss_kb": 220000, "threads": 57}
+    ],
+    "after_refreshes_diagnostic": {"pss_kb": 165276, "rss_kb": 271584, "threads": 51},
+    "obvious_runaway_or_physical_only_anomaly": false,
+    "retained_memory_numeric_baseline": false,
+    "classification": "PHYSICAL SANITY ONLY"
+  },
+  "tiny_profile_ab": {
+    "performed": true,
+    "order": ["disabled-1", "enabled-1", "enabled-2", "disabled-2"],
+    "iterations_per_arm": 5,
+    "total_cold_starts": 20,
+    "time_to_initial_display_ms": {
+      "disabled_raw": [368.646666, 367.766875, 379.919375, 355.323645, 358.128124, 371.558541, 368.410729, 362.910416, 366.914323, 376.549896],
+      "disabled_median": 368.088802,
+      "enabled_raw": [377.450677, 391.840364, 400.456718, 401.170104, 382.419063, 387.355625, 386.943854, 384.446719, 383.99974, 397.65099],
+      "enabled_median": 387.1497395,
+      "enabled_delta_ms": 19.0609375,
+      "enabled_delta_percent": 5.178353,
+      "direction": "reversed; enabled was slower"
+    },
+    "time_to_full_display_ms": {
+      "disabled_raw": [558.494427, 532.163177, 554.766198, 527.710833, 525.380937, 549.775781, 531.49776, 527.778906, 534.750573, 546.081979],
+      "disabled_median": 533.456875,
+      "enabled_raw": [508.593697, 500.233072, 528.619687, 502.316041, 511.852552, 500.450573, 486.805781, 490.757031, 493.413282, 512.68849],
+      "enabled_median": 501.383307,
+      "enabled_delta_ms": -32.073568,
+      "enabled_delta_percent": -6.012401,
+      "direction": "preserved; enabled was faster"
+    },
+    "interpretation": "ARM64 preserved the emulator-established TTFD direction. TTID reversed in this tiny same-device sample and is retained transparently; it does not supersede Q1.1h.",
+    "classification": "LIMITED PHYSICAL PROFILE CONFIRMATION"
+  },
+  "accepted_evidence": {
+    "trace_count": 27,
+    "raw_location_ignored_by_git": "performance-results/q1.1i-physical-20260829/",
+    "accepted_subdirectories": [
+      "disabled-1",
+      "enabled-1",
+      "enabled-2",
+      "disabled-2",
+      "songs",
+      "albums-r2",
+      "playback-refresh-rebuild-r6"
+    ]
+  },
+  "invalid_apparatus_history": [
+    {
+      "scope": "Albums pre-measure setup",
+      "classification": "harness selector",
+      "result": "The first attempt used an accessibility description not exposed by the physical UI. It was excluded and rerun with the established visible-text destination selector."
+    },
+    {
+      "scope": "Playback session verifier attempts 1-3",
+      "classification": "harness and expected Android PlaybackState semantics",
+      "result": "The verifier first used an over-broad package context, then treated PlaybackState's base position as live, then used an Android-incompatible regular expression. All failed before backgrounding, refresh, or rebuild and are excluded."
+    },
+    {
+      "scope": "Playback attempts 4-5",
+      "classification": "OEM launcher selector and physical viewport geometry",
+      "result": "Both proved 120-second playback but stopped before any refresh or rebuild because generic Settings selection collided with Samsung Launcher and the swipe began below the shortened settings viewport. Package-bound selectors and measured viewport-relative geometry corrected the harness; only attempt 6 is accepted for the integrated journey."
+    }
+  ],
+  "findings": {
+    "critical_physical_regression": false,
+    "crash": false,
+    "persistent_ui_failure": false,
+    "profile_installation_failure": false,
+    "playback_or_session_loss": false,
+    "full_rebuild_corruption": false,
+    "obvious_resource_runaway": false,
+    "oem_observations": [
+      "Samsung Launcher exposes a visible Settings label, so physical UI selectors must be package-bound.",
+      "The adaptive display changed observed refresh rate without the test changing display policy.",
+      "dumpsys media_session reports a PlaybackState base position/update time/speed tuple; live position must be extrapolated."
+    ]
+  },
+  "classifications": {
+    "startup": "PHYSICAL NUMERIC REFERENCE",
+    "songs": "LIMITED PHYSICAL NUMERIC REFERENCE",
+    "albums": "LIMITED PHYSICAL NUMERIC REFERENCE",
+    "profile_arm64": "PHYSICAL CORRECTNESS + TRACE REFERENCE",
+    "playback_refresh_rebuild": "PHYSICAL CORRECTNESS + TRACE REFERENCE",
+    "resources": "PHYSICAL SANITY ONLY",
+    "profile_ab": "LIMITED PHYSICAL PROFILE CONFIRMATION"
+  },
+  "limitations": [
+    "One Samsung SM-S908U and one real-world library do not establish universal Android or canonical MEDIUM numeric authority.",
+    "Physical values are primarily suitable for future same-device/model directional comparison.",
+    "No user media mutations, physical FD count, acoustic dropout capture, battery authority, thermal authority, Bluetooth matrix, DAC validation, or broad OEM matrix were attempted.",
+    "Songs and Albums contain three repeats each and therefore remain limited hardware-specific numeric references.",
+    "Resource samples are bounded anomaly checks, not Q1.1g replacement authority.",
+    "TTID reversed in the tiny profile A/B while TTFD retained the accepted beneficial direction; the controlled Q1.1h emulator matrix remains canonical profile authority."
+  ]
+}

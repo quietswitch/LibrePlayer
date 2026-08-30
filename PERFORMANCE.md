@@ -338,3 +338,28 @@ python tools/performance-reference/baseline_profile_authority.py run `
 ```
 
 Run all six sides in the enforced order, then use `python tools/performance-reference/baseline_profile_authority.py compare --results-root performance-results/RUN_ID`. The concise authority, exact distributions, hashes, limitations, and invalid-attempt exclusions are in `performance-baselines/baseline-profile-authority.json`. Accepted raw generation evidence remains ignored under `performance-results/q1.1h-authority-20260828/`; A/B results and Perfetto traces remain ignored under `performance-results/q1.1h-authority-20260829-ab/`.
+
+## Q1.1 Performance Authority — CLOSED
+
+Q1.1 is closed. It established reusable benchmark infrastructure, deterministic fixtures and an immutable v1.0.4 reference, controlled startup/library-UI/synchronization/playback-under-load/memory-resource authorities, an accepted and packaged Baseline Profile, and a bounded real-hardware closeout. The concise master index is `performance-baselines/q1.1-performance-authority.json`; detailed curated records live beside it in `performance-baselines/`.
+
+The canonical numeric regression channels remain their documented controlled emulator/fixture environments. The physical closeout is deliberately narrower:
+
+**PHYSICAL DEVICE REFERENCE — NOT A UNIVERSAL ANDROID PERFORMANCE REQUIREMENT**
+
+The physical record in `performance-baselines/physical-reference.json` used an isolated `com.libreplayer.physicalreference` package on ARM64 Samsung hardware with a privacy-safe aggregate real-world library. It confirmed usable startup, Songs/Albums browsing, real two-minute background playback, three unchanged refreshes, one isolated rebuild, bounded resource sanity, packaged profile installation, and `speed-profile` ART state. It neither touched the existing `com.libreplayer` package/data nor creates canonical MEDIUM or universal hardware timing thresholds. Its tiny profile A/B preserved Q1.1h's beneficial TTFD direction while TTID reversed; Q1.1h remains the controlled profile authority and its decision remains **ACCEPT AND SHIP PROFILE**.
+
+Choose the smallest relevant established authority for later work:
+
+| Future change | Invoke |
+| --- | --- |
+| Startup, initial navigation, fully drawn | Q1.1c startup; reassess Q1.1h only if the profiled hot path changes |
+| Songs, Albums, Compose library UI | Relevant Q1.1d journey; bounded Q1.1g check when allocation-sensitive |
+| Search | Q1.1d Search correctness/trace; Q1.1g Search memory when needed |
+| Scanner, MediaStore, metadata refresh, rebuild, SAF | Q1.1e synchronization |
+| PlaybackService, Media3/session, queue, background audio | Q1.1f playback-under-load |
+| Artwork/cache | Q1.1d Albums plus Q1.1g Albums/resource when needed |
+| Hot-path architecture or profile toolchain | Q1.1h regeneration/reproducibility audit and balanced A/B |
+| Broad release candidate | Bounded non-destructive Q1.1i physical reference |
+
+Do not run every suite for every commit. LARGE 10k authority where not established, physical FD counts, acoustic dropout/underrun capture, battery and thermal authority, broad OEM coverage, R8/minification, Bluetooth-specific continuity, and exact DAC/output-path behavior remain explicit non-blocking deferrals. They are not universal claims silently implied by Q1.1.
