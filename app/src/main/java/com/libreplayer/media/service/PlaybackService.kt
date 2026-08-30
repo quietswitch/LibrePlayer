@@ -13,6 +13,7 @@ import com.libreplayer.BuildConfig
 import com.libreplayer.app.LibrePlayerApplication
 import com.libreplayer.app.MainActivity
 import com.libreplayer.media.playback.PlaybackSnapshot
+import com.libreplayer.media.playback.normalizedSeekPosition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -151,6 +152,7 @@ class PlaybackService : MediaSessionService() {
             queueIds = snapshot.queueIds,
             savedCurrentIndex = snapshot.currentIndex,
             restoredIds = songs.map { it.id },
+            restoredDurationsMs = songs.map { it.durationMs },
             savedPositionMs = snapshot.positionMs,
         )
         player.setMediaItems(
@@ -211,6 +213,7 @@ internal fun restoredQueueSelection(
     queueIds: List<String>,
     savedCurrentIndex: Int,
     restoredIds: List<String>,
+    restoredDurationsMs: List<Long> = emptyList(),
     savedPositionMs: Long,
 ): RestoredQueueSelection {
     if (restoredIds.isEmpty()) {
@@ -232,7 +235,10 @@ internal fun restoredQueueSelection(
     return if (restoredSavedIndex >= 0) {
         RestoredQueueSelection(
             index = restoredSavedIndex,
-            positionMs = savedPositionMs.coerceAtLeast(0L),
+            positionMs = normalizedSeekPosition(
+                requestedPositionMs = savedPositionMs,
+                knownDurationMs = restoredDurationsMs.getOrNull(restoredSavedIndex),
+            ),
         )
     } else {
         RestoredQueueSelection(

@@ -28,8 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
 /** Benchmark-variant-only observation of real MediaSession playback during real library work. */
@@ -92,6 +94,13 @@ class PlaybackLoadProbeProvider : ContentProvider() {
                 METHOD_REBUILD -> observeLoad(application.appContainer.libraryRepository, true, arg)
                 METHOD_SEMANTICS -> exercisePlaybackSemantics(application)
                 METHOD_VERIFY_SEMANTICS -> verifyPlaybackSemantics()
+                METHOD_SEEK_SEMANTICS -> exerciseSeekSemantics(application)
+                METHOD_SEEK_BACKGROUND -> verifyBackgroundSeekAndReconnect()
+                METHOD_VERIFY_SEEK -> verifySeekSemantics()
+                METHOD_PREPARE_PAUSED_RESTORE -> preparePositionRestoration(application, playWhenReady = false)
+                METHOD_PREPARE_PLAYING_RESTORE -> preparePositionRestoration(application, playWhenReady = true)
+                METHOD_VERIFY_PAUSED_RESTORE -> verifyPositionRestoration(application, playWhenReady = false)
+                METHOD_VERIFY_PLAYING_RESTORE -> verifyPositionRestoration(application, playWhenReady = true)
                 METHOD_STOP -> stopPlayback()
                 else -> error("Unsupported playback-load probe method: $method")
             }
@@ -335,6 +344,220 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         return Bundle().apply {
             putBoolean(KEY_SEMANTICS_PASSED, true)
             putSnapshot("after", snapshot)
+        }
+    }
+
+    private suspend fun exerciseSeekSemantics(application: LibrePlayerApplication): Bundle {
+        val controller = connectedObserver()
+        val connection = application.appContainer.playbackConnection
+        val queue = seekFixtureQueue(application)
+        val expectedMediaId = queue[1].id
+
+        withContext(Dispatchers.Main.immediate) {
+            controller.shuffleModeEnabled = false
+            controller.repeatMode = Player.REPEAT_MODE_OFF
+            connection.playSong(queue, 1)
+        }
+        val started = awaitSnapshot(controller, "seek journey start") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.currentIndex == 1 &&
+                it.mediaIds == queue.map(Song::id)
+        }
+        delay(SEEK_ADVANCEMENT_OBSERVATION_MS)
+        val advanced = awaitSnapshot(controller, "position advancement") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.positionMs - started.positionMs >= MINIMUM_SEEK_ADVANCEMENT_MS
+        }
+
+        withContext(Dispatchers.Main.immediate) { connection.seekTo(10_000L) }
+        val playingSeek = awaitSnapshot(controller, "playing seek") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.positionMs in 9_500L..12_500L
+        }
+
+        withContext(Dispatchers.Main.immediate) { controller.pause() }
+        awaitSnapshot(controller, "paused before seek") {
+            it.mediaId == expectedMediaId && !it.playWhenReady && !it.isPlaying
+        }
+        withContext(Dispatchers.Main.immediate) { connection.seekTo(15_000L) }
+        val pausedSeek = awaitSnapshot(controller, "paused seek") {
+            it.mediaId == expectedMediaId &&
+                !it.playWhenReady &&
+                !it.isPlaying &&
+                it.positionMs in 14_500L..15_500L
+        }
+
+        withContext(Dispatchers.Main.immediate) { connection.seekTo(-1L) }
+        awaitSnapshot(controller, "negative seek normalization") {
+            it.mediaId == expectedMediaId &&
+                !it.playWhenReady &&
+                it.positionMs in 0L..PAUSED_SEEK_TOLERANCE_MS
+        }
+        withContext(Dispatchers.Main.immediate) { controller.play() }
+        awaitActivePlayback(controller, expectedMediaId)
+
+        withContext(Dispatchers.Main.immediate) {
+            connection.seekTo(3_000L)
+            connection.seekTo(7_000L)
+            connection.seekTo(12_000L)
+        }
+        val repeatedSeek = awaitSnapshot(controller, "final repeated seek") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.positionMs in 11_500L..14_500L
+        }
+
+        withContext(Dispatchers.Main.immediate) { connection.seekTo(7_000L) }
+        awaitSnapshot(controller, "position before restart threshold") {
+            it.mediaId == expectedMediaId && it.positionMs >= 6_500L
+        }
+        withContext(Dispatchers.Main.immediate) { connection.skipPrevious() }
+        awaitSnapshot(controller, "previous restarts current at zero") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.currentIndex == 1 &&
+                it.positionMs < ITEM_START_TOLERANCE_MS
+        }
+
+        withContext(Dispatchers.Main.immediate) { connection.skipPrevious() }
+        awaitSnapshot(controller, "previous selects prior item at default position") {
+            it.isContinuouslyActive(queue[0].id) &&
+                it.currentIndex == 0 &&
+                it.positionMs < ITEM_START_TOLERANCE_MS
+        }
+        withContext(Dispatchers.Main.immediate) {
+            connection.seekTo(16_000L)
+            connection.skipNext()
+        }
+        val finalSnapshot = awaitSnapshot(controller, "next does not inherit old position") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.currentIndex == 1 &&
+                it.positionMs < ITEM_START_TOLERANCE_MS
+        }
+
+        playingMediaId = expectedMediaId
+        semanticsQueueIds = queue.map(Song::id)
+        return Bundle().apply {
+            putBoolean(KEY_SEEK_SEMANTICS_PASSED, true)
+            putLong(KEY_POSITION_ADVANCEMENT_MS, advanced.positionMs - started.positionMs)
+            putSnapshot("playingSeek", playingSeek)
+            putSnapshot("pausedSeek", pausedSeek)
+            putSnapshot("repeatedSeek", repeatedSeek)
+            putSnapshot("after", finalSnapshot)
+        }
+    }
+
+    private suspend fun verifyBackgroundSeekAndReconnect(): Bundle {
+        val controller = connectedObserver()
+        val expectedMediaId = requireNotNull(playingMediaId) { "Seek sequence was not prepared" }
+        withContext(Dispatchers.Main.immediate) { controller.seekTo(BACKGROUND_SEEK_POSITION_MS) }
+        awaitSnapshot(controller, "background MediaSession seek") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.positionMs in
+                (BACKGROUND_SEEK_POSITION_MS - PLAYING_SEEK_EARLY_TOLERANCE_MS)..
+                    (BACKGROUND_SEEK_POSITION_MS + PLAYING_SEEK_LATE_TOLERANCE_MS)
+        }
+        withContext(Dispatchers.Main.immediate) {
+            observer?.removeListener(playerListener)
+            observer?.release()
+            observer = null
+        }
+        val reconnected = connectedObserver()
+        val snapshot = awaitSnapshot(reconnected, "controller reconnect after background seek") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.mediaIds == semanticsQueueIds &&
+                it.positionMs >= BACKGROUND_SEEK_POSITION_MS - PLAYING_SEEK_EARLY_TOLERANCE_MS
+        }
+        return Bundle().apply {
+            putBoolean(KEY_SEEK_SEMANTICS_PASSED, true)
+            putSnapshot("after", snapshot)
+        }
+    }
+
+    private suspend fun verifySeekSemantics(): Bundle {
+        val controller = connectedObserver()
+        val expectedMediaId = requireNotNull(playingMediaId) { "Seek sequence was not prepared" }
+        val snapshot = awaitSnapshot(controller, "foreground return after seek") {
+            it.isContinuouslyActive(expectedMediaId) && it.mediaIds == semanticsQueueIds
+        }
+        return Bundle().apply {
+            putBoolean(KEY_SEEK_SEMANTICS_PASSED, true)
+            putSnapshot("after", snapshot)
+        }
+    }
+
+    private suspend fun preparePositionRestoration(
+        application: LibrePlayerApplication,
+        playWhenReady: Boolean,
+    ): Bundle {
+        val controller = connectedObserver()
+        val connection = application.appContainer.playbackConnection
+        val fixtures = seekFixtureQueue(application)
+        val queue = listOf(fixtures[0], fixtures[1], fixtures[0])
+        val index = if (playWhenReady) 1 else 2
+        val positionMs = if (playWhenReady) PLAYING_RESTORE_POSITION_MS else PAUSED_RESTORE_POSITION_MS
+
+        withContext(Dispatchers.Main.immediate) {
+            controller.shuffleModeEnabled = false
+            controller.repeatMode = Player.REPEAT_MODE_OFF
+            connection.playQueue(queue, startIndex = index, positionMs = positionMs)
+        }
+        awaitActivePlayback(controller, queue[index].id)
+        if (!playWhenReady) {
+            withContext(Dispatchers.Main.immediate) { controller.pause() }
+        }
+        awaitSnapshot(controller, "restoration state before persistence") {
+            it.mediaId == queue[index].id &&
+                it.currentIndex == index &&
+                it.mediaIds == queue.map(Song::id) &&
+                it.playWhenReady == playWhenReady &&
+                it.positionMs >= positionMs - PAUSED_SEEK_TOLERANCE_MS
+        }
+        val persisted = withTimeout(PERSISTENCE_TIMEOUT_MS) {
+            application.appContainer.playbackSnapshotStore.snapshot.first { snapshot ->
+                snapshot.queueIds == queue.map(Song::id) &&
+                    snapshot.currentIndex == index &&
+                    snapshot.playWhenReady == playWhenReady &&
+                    snapshot.positionMs >= positionMs - PAUSED_SEEK_TOLERANCE_MS
+            }
+        }
+        return Bundle().apply {
+            putBoolean(KEY_RESTORATION_PASSED, true)
+            putLong("persistedPositionMs", persisted.positionMs)
+            putBoolean("persistedPlayWhenReady", persisted.playWhenReady)
+        }
+    }
+
+    private suspend fun verifyPositionRestoration(
+        application: LibrePlayerApplication,
+        playWhenReady: Boolean,
+    ): Bundle {
+        val controller = connectedObserver()
+        val fixtures = seekFixtureQueue(application)
+        val queue = listOf(fixtures[0], fixtures[1], fixtures[0])
+        val index = if (playWhenReady) 1 else 2
+        val positionMs = if (playWhenReady) PLAYING_RESTORE_POSITION_MS else PAUSED_RESTORE_POSITION_MS
+        val snapshot = awaitSnapshot(controller, "restored position and play intent") {
+            it.mediaId == queue[index].id &&
+                it.currentIndex == index &&
+                it.mediaIds == queue.map(Song::id) &&
+                it.playWhenReady == playWhenReady &&
+                it.isPlaying == playWhenReady &&
+                it.positionMs >= positionMs - PAUSED_SEEK_TOLERANCE_MS &&
+                (!playWhenReady || it.positionMs <= positionMs + PLAYING_RESTORE_LATE_TOLERANCE_MS) &&
+                (playWhenReady || it.positionMs <= positionMs + PAUSED_SEEK_TOLERANCE_MS)
+        }
+        return Bundle().apply {
+            putBoolean(KEY_RESTORATION_PASSED, true)
+            putSnapshot("after", snapshot)
+        }
+    }
+
+    private suspend fun seekFixtureQueue(application: LibrePlayerApplication): List<Song> {
+        val songsByIdentity = application.appContainer.libraryRepository.getAllSongs()
+            .mapNotNull { song -> song.fixtureIdentity()?.let { it to song } }
+            .toMap()
+        return listOf(9, 10, 11).map { track ->
+            val identity = fixtureIdentity(track)
+            requireNotNull(songsByIdentity[identity]) { "Missing playback fixture: $identity" }
         }
     }
 
@@ -590,6 +813,13 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         const val METHOD_REBUILD = "rebuild"
         const val METHOD_SEMANTICS = "semantics"
         const val METHOD_VERIFY_SEMANTICS = "verify-semantics"
+        const val METHOD_SEEK_SEMANTICS = "seek-semantics"
+        const val METHOD_SEEK_BACKGROUND = "seek-background"
+        const val METHOD_VERIFY_SEEK = "verify-seek"
+        const val METHOD_PREPARE_PAUSED_RESTORE = "prepare-paused-restore"
+        const val METHOD_PREPARE_PLAYING_RESTORE = "prepare-playing-restore"
+        const val METHOD_VERIFY_PAUSED_RESTORE = "verify-paused-restore"
+        const val METHOD_VERIFY_PLAYING_RESTORE = "verify-playing-restore"
         const val METHOD_STOP = "stop"
         const val TRACE_SECTION = "LibrePlayerPlaybackUnderLoad"
         const val LOG_TAG = "LibrePlayerPlaybackLoad"
@@ -598,6 +828,8 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         const val KEY_PREPARED = "prepared"
         const val KEY_STOPPED = "stopped"
         const val KEY_SEMANTICS_PASSED = "semanticsPassed"
+        const val KEY_SEEK_SEMANTICS_PASSED = "seekSemanticsPassed"
+        const val KEY_RESTORATION_PASSED = "restorationPassed"
         const val KEY_PLAYBACK_FIXTURE_IDENTITY = "playbackFixtureIdentity"
         const val KEY_TRACK_DURATION_MS = "trackDurationMs"
         const val KEY_SYNCHRONIZATION_ELAPSED_NANOS = "synchronizationElapsedNanos"
@@ -626,6 +858,17 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         private const val ACTIVE_TIMEOUT_MS = 15_000L
         private const val ACTIVE_POLL_MS = 50L
         private const val CONTROLLER_TIMEOUT_SECONDS = 15L
+        private const val SEEK_ADVANCEMENT_OBSERVATION_MS = 750L
+        private const val MINIMUM_SEEK_ADVANCEMENT_MS = 400L
+        private const val PAUSED_SEEK_TOLERANCE_MS = 500L
+        private const val ITEM_START_TOLERANCE_MS = 2_000L
+        private const val BACKGROUND_SEEK_POSITION_MS = 6_000L
+        private const val PLAYING_SEEK_EARLY_TOLERANCE_MS = 500L
+        private const val PLAYING_SEEK_LATE_TOLERANCE_MS = 3_000L
+        private const val PAUSED_RESTORE_POSITION_MS = 15_000L
+        private const val PLAYING_RESTORE_POSITION_MS = 8_000L
+        private const val PLAYING_RESTORE_LATE_TOLERANCE_MS = 5_000L
+        private const val PERSISTENCE_TIMEOUT_MS = 10_000L
 
         private fun fixtureIdentity(track: Int): String {
             val padded = track.toString().padStart(5, '0')

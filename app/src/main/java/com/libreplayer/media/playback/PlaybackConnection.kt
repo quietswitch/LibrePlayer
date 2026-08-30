@@ -198,7 +198,18 @@ class PlaybackConnection(
     }
 
     fun seekTo(positionMs: Long) {
-        controller?.seekTo(positionMs)
+        controller?.let { activeController ->
+            val knownDurationMs = activeController.duration.takeIf { it > 0L }
+                ?: cachedQueue.getOrNull(activeController.currentMediaItemIndex)
+                    ?.durationMs
+                    ?.takeIf { it > 0L }
+            activeController.seekTo(
+                normalizedSeekPosition(
+                    requestedPositionMs = positionMs,
+                    knownDurationMs = knownDurationMs,
+                ),
+            )
+        }
         refreshUiState()
     }
 

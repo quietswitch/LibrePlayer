@@ -4,6 +4,10 @@ import androidx.media3.common.Player
 
 internal const val PREVIOUS_RESTART_THRESHOLD_MS = 5_000L
 
+// Media3 converts public millisecond positions to its internal microsecond timebase.
+// Keep the product boundary within a range that cannot overflow that conversion.
+internal const val MAX_SAFE_MEDIA3_POSITION_MS = Long.MAX_VALUE / 1_000L
+
 internal enum class PreviousAction {
     RESTART_CURRENT,
     SEEK_PREVIOUS,
@@ -45,3 +49,14 @@ internal fun isValidQueueSelection(queueSize: Int, index: Int): Boolean =
     queueSize > 0 && index in 0 until queueSize
 
 internal fun queueOccurrenceKey(index: Int, mediaId: String): String = "$index:$mediaId"
+
+internal fun normalizedSeekPosition(
+    requestedPositionMs: Long,
+    knownDurationMs: Long?,
+): Long {
+    val safePositionMs = requestedPositionMs.coerceIn(0L, MAX_SAFE_MEDIA3_POSITION_MS)
+    val safeDurationMs = knownDurationMs
+        ?.takeIf { it > 0L }
+        ?.coerceAtMost(MAX_SAFE_MEDIA3_POSITION_MS)
+    return safeDurationMs?.let { safePositionMs.coerceAtMost(it) } ?: safePositionMs
+}

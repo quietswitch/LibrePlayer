@@ -83,4 +83,46 @@ class PlaybackRestoreTest {
         assertThat(selection.index).isEqualTo(1)
         assertThat(selection.positionMs).isEqualTo(0L)
     }
+
+    @Test
+    fun `restored position is bounded by known duration`() {
+        val selection = restoredQueueSelection(
+            queueIds = savedQueue,
+            savedCurrentIndex = 1,
+            restoredIds = savedQueue,
+            restoredDurationsMs = listOf(60_000L, 90_000L, 60_000L, 60_000L),
+            savedPositionMs = 120_000L,
+        )
+
+        assertThat(selection.index).isEqualTo(1)
+        assertThat(selection.positionMs).isEqualTo(90_000L)
+    }
+
+    @Test
+    fun `restored position just before known duration is preserved`() {
+        val selection = restoredQueueSelection(
+            queueIds = savedQueue,
+            savedCurrentIndex = 1,
+            restoredIds = savedQueue,
+            restoredDurationsMs = listOf(60_000L, 90_000L, 60_000L, 60_000L),
+            savedPositionMs = 89_999L,
+        )
+
+        assertThat(selection.index).isEqualTo(1)
+        assertThat(selection.positionMs).isEqualTo(89_999L)
+    }
+
+    @Test
+    fun `duplicate occurrence uses its own duration when restoring position`() {
+        val selection = restoredQueueSelection(
+            queueIds = listOf("a", "b", "a"),
+            savedCurrentIndex = 2,
+            restoredIds = listOf("a", "b", "a"),
+            restoredDurationsMs = listOf(10_000L, 20_000L, 30_000L),
+            savedPositionMs = 25_000L,
+        )
+
+        assertThat(selection.index).isEqualTo(2)
+        assertThat(selection.positionMs).isEqualTo(25_000L)
+    }
 }

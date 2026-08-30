@@ -69,4 +69,34 @@ class PlaybackSemanticsTest {
         assertThat(queueOccurrenceKey(index = 0, mediaId = "song"))
             .isNotEqualTo(queueOccurrenceKey(index = 2, mediaId = "song"))
     }
+
+    @Test
+    fun `seek to zero and ordinary middle position are preserved`() {
+        assertThat(normalizedSeekPosition(0L, knownDurationMs = 60_000L)).isEqualTo(0L)
+        assertThat(normalizedSeekPosition(23_456L, knownDurationMs = 60_000L))
+            .isEqualTo(23_456L)
+    }
+
+    @Test
+    fun `negative seek is normalized to start`() {
+        assertThat(normalizedSeekPosition(-1L, knownDurationMs = 60_000L)).isEqualTo(0L)
+        assertThat(normalizedSeekPosition(Long.MIN_VALUE, knownDurationMs = 60_000L)).isEqualTo(0L)
+    }
+
+    @Test
+    fun `seek beyond a known duration is normalized to its end`() {
+        assertThat(normalizedSeekPosition(60_001L, knownDurationMs = 60_000L))
+            .isEqualTo(60_000L)
+        assertThat(normalizedSeekPosition(Long.MAX_VALUE, knownDurationMs = 60_000L))
+            .isEqualTo(60_000L)
+    }
+
+    @Test
+    fun `unknown or malformed duration keeps a safe nonnegative request`() {
+        assertThat(normalizedSeekPosition(23_456L, knownDurationMs = null)).isEqualTo(23_456L)
+        assertThat(normalizedSeekPosition(23_456L, knownDurationMs = 0L)).isEqualTo(23_456L)
+        assertThat(normalizedSeekPosition(23_456L, knownDurationMs = -1L)).isEqualTo(23_456L)
+        assertThat(normalizedSeekPosition(Long.MAX_VALUE, knownDurationMs = null))
+            .isEqualTo(MAX_SAFE_MEDIA3_POSITION_MS)
+    }
 }
