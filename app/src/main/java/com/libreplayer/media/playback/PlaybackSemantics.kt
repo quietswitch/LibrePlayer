@@ -18,12 +18,15 @@ internal enum class PlaybackToggleAction {
     PAUSE,
     PLAY,
     RETRY_CURRENT,
+    RESTART_ENDED,
 }
 
 internal fun playbackToggleAction(
     playWhenReady: Boolean,
     hasPlaybackError: Boolean,
+    playbackState: Int = Player.STATE_READY,
 ): PlaybackToggleAction = when {
+    playbackState == Player.STATE_ENDED -> PlaybackToggleAction.RESTART_ENDED
     playWhenReady -> PlaybackToggleAction.PAUSE
     hasPlaybackError -> PlaybackToggleAction.RETRY_CURRENT
     else -> PlaybackToggleAction.PLAY

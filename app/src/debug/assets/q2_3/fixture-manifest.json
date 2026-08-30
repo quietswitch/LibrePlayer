@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "authority": "Q2.3 synthetic transition fixtures only; not production media",
+  "source": "tools/performance-fixtures/generate_transition_fixtures.ps1",
+  "signal": "2.000-second 440 Hz mono sine at 48000 Hz; each part begins at an integer-cycle boundary",
+  "files": [
+    {"name":"transition-flac-1.flac","sha256":"99ba43f6984bb05a8753f0edf3df44f2f10a371f0d2f4a161a7401c1e1b91122","bytes":34617,"codec":"flac","container":"flac","duration_ms":2000},
+    {"name":"transition-flac-2.flac","sha256":"99ba43f6984bb05a8753f0edf3df44f2f10a371f0d2f4a161a7401c1e1b91122","bytes":34617,"codec":"flac","container":"flac","duration_ms":2000},
+    {"name":"transition-m4a-1.m4a","sha256":"1c443cb4a946b031406265417227d426b3b3870edb446afc3140d885e4517dfb","bytes":32299,"codec":"aac","container":"m4a","duration_ms":2000},
+    {"name":"transition-m4a-2.m4a","sha256":"1c443cb4a946b031406265417227d426b3b3870edb446afc3140d885e4517dfb","bytes":32299,"codec":"aac","container":"m4a","duration_ms":2000},
+    {"name":"transition-mp3-1.mp3","sha256":"b7afbe49655ff3b0ccff3dc245f8eca09d6eaf08cd58e7dabe85b9da8428d33e","bytes":33024,"codec":"mp3","container":"mp3","duration_ms":2000,"ffprobe_start_ms":23.021},
+    {"name":"transition-mp3-2.mp3","sha256":"b7afbe49655ff3b0ccff3dc245f8eca09d6eaf08cd58e7dabe85b9da8428d33e","bytes":33024,"codec":"mp3","container":"mp3","duration_ms":2000,"ffprobe_start_ms":23.021},
+    {"name":"transition-mp3-3.mp3","sha256":"b7afbe49655ff3b0ccff3dc245f8eca09d6eaf08cd58e7dabe85b9da8428d33e","bytes":33024,"codec":"mp3","container":"mp3","duration_ms":2000,"ffprobe_start_ms":23.021},
+    {"name":"transition-wav-1.wav","sha256":"661f9491ac74affb02711202bb9df670350a31d248cbe5cbd2e5d8117bdff570","bytes":192044,"codec":"pcm_s16le","container":"wav","duration_ms":2000},
+    {"name":"transition-wav-2.wav","sha256":"661f9491ac74affb02711202bb9df670350a31d248cbe5cbd2e5d8117bdff570","bytes":192044,"codec":"pcm_s16le","container":"wav","duration_ms":2000}
+  ]
+}

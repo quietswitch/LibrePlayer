@@ -22,6 +22,24 @@ class PlaybackSemanticsTest {
     }
 
     @Test
+    fun `toggle restarts an ended item even when play intent remains true`() {
+        assertThat(
+            playbackToggleAction(
+                playWhenReady = true,
+                hasPlaybackError = false,
+                playbackState = Player.STATE_ENDED,
+            ),
+        ).isEqualTo(PlaybackToggleAction.RESTART_ENDED)
+        assertThat(
+            playbackToggleAction(
+                playWhenReady = false,
+                hasPlaybackError = false,
+                playbackState = Player.STATE_ENDED,
+            ),
+        ).isEqualTo(PlaybackToggleAction.RESTART_ENDED)
+    }
+
+    @Test
     fun `previous restarts current item only beyond threshold`() {
         assertThat(previousAction(5_001L, hasPreviousMediaItem = true))
             .isEqualTo(PreviousAction.RESTART_CURRENT)

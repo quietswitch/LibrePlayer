@@ -141,6 +141,7 @@ class PlaybackConnection(
                 playbackToggleAction(
                     playWhenReady = activeController.playWhenReady,
                     hasPlaybackError = currentPlaybackErrorMessage != null,
+                    playbackState = activeController.playbackState,
                 )
             ) {
                 PlaybackToggleAction.PAUSE -> {
@@ -153,6 +154,11 @@ class PlaybackConnection(
                 }
                 PlaybackToggleAction.RETRY_CURRENT -> scope.launch {
                     retryCurrentItemFromLibrary(activeController)
+                }
+                PlaybackToggleAction.RESTART_ENDED -> {
+                    activeController.seekToDefaultPosition()
+                    activeController.play()
+                    refreshUiState()
                 }
             }
         }

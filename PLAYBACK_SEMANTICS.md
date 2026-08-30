@@ -1,6 +1,6 @@
 # Playback and queue semantics
 
-This document is the Q2.1-Q2.2 contract for LibrePlayer 1.0.4. It describes current
+This document is the Q2.1-Q2.3 contract for LibrePlayer 1.0.4. It describes current
 product behavior; later playback work should preserve it unless a milestone
 explicitly changes the contract.
 
@@ -131,6 +131,82 @@ explicitly changes the contract.
   saves the last meaningful snapshot; platform process removal is therefore
   subject to the same best-effort DataStore persistence behavior.
 
+## Track transition and gapless semantics
+
+### Natural and manual boundaries
+
+- Media3 owns automatic playlist transitions on the single service `ExoPlayer`.
+  For an ordinary A → B boundary, LibrePlayer does not call `stop()`, clear or
+  rebuild the timeline, create another player, or call `prepare()`. Media3 emits
+  `MEDIA_ITEM_TRANSITION_REASON_AUTO` and
+  `DISCONTINUITY_REASON_AUTO_TRANSITION`; B becomes current at its default
+  position with play intent active. The original timeline and MediaSession stay
+  intact, and the player does not enter `STATE_ENDED` between playable neighbors.
+- With repeat off, natural completion of the final item retains that final media
+  ID and index, keeps the timeline, reaches `STATE_ENDED`, and reports
+  `isPlaying == false`. Media3 retains `playWhenReady == true`; LibrePlayer treats
+  the visible Play action in this state as a request to restart the same final
+  occurrence at its default position, rather than requiring a misleading pause
+  action first. Replacing the queue after ended state starts the requested new
+  occurrence normally.
+- Repeat one naturally restarts the same logical item at zero. With Media3 1.9.2
+  on the API 36 authority emulator this is observable as an automatic position
+  discontinuity without a logical media-item identity transition. Manual next
+  remains the Q2.1 rule: it selects the next timeline item and produces the
+  normal seek transition even while repeat one is enabled.
+- Repeat all naturally wraps the final item to the first with Media3's automatic
+  transition reason. Shuffle follows `nextMediaItemIndex` from Media3's current
+  shuffle traversal; LibrePlayer neither predicts nor replaces that order.
+- A manual next/previous updates current identity and starts the selected item at
+  its default position. It does not destabilize later automatic traversal. The
+  Q2.1 five-second previous restart remains an in-item seek, not a track change.
+- A near-end seek first produces the expected seek discontinuity; when the
+  remaining media completes, the ordinary automatic transition follows. A Q2.2
+  seek normalized exactly to a non-final item's duration produces the same
+  automatic successor transition on Media3 1.9.2: the successor is current at
+  its default position, with an automatic transition and discontinuity after the
+  seek discontinuity. Seeking to the final item's duration follows final-item
+  ended semantics.
+- A paused item does not progress or transition merely because wall-clock time
+  passes. Natural transitions require media progression.
+
+### Projection, background, and persistence
+
+- Transition identity and index propagate from the controller timeline through
+  `PlaybackConnection` to ViewModel/UI state. No Activity is required: the
+  service completes transitions while the app is backgrounded, and foreground
+  return observes the already-current successor. A controller released before a
+  boundary and reconnected afterward observes the same service player, correct
+  successor, active play intent, and near-start position.
+- Media-item transition and position-discontinuity events use the existing
+  bounded persistence path. The next persisted snapshot contains the successor
+  occurrence/index and that item's own position; the completed item's terminal
+  position is not copied into it. No additional write loop or transition-specific
+  database cadence is introduced.
+- Adjacent preparation remains Media3-owned. LibrePlayer makes no promise about
+  an exact preload instant and adds no second player or application preloader.
+
+### Gapless authority levels
+
+- **Level 1 — playlist transition correctness: established.** Same player and
+  MediaSession, intact timeline, expected automatic/repeat/seek events, correct
+  successor position and intent, no player error, no unexpected session loss,
+  and no intermediate ended state were verified with real Media3 playback.
+- **Level 2 — gapless-capable playback-path evidence: established for the tested
+  pairs only.** Debug-only observation of 48 kHz mono WAV→WAV, FLAC→FLAC,
+  MP3→MP3, and AAC/M4A→AAC/M4A pairs found no audio underrun, codec/sink error,
+  application pause/stop/reprepare, intermediate ended state, or active
+  AudioTrack teardown before the successor was established. Media3 exposed
+  input-format and sink configuration at both sides. The MP3 pair exposed
+  encoder delay 576 and padding 1344; AAC/M4A exposed delay 1024 and padding 0;
+  WAV and FLAC exposed zero delay/padding. These observations demonstrate that
+  LibrePlayer preserves Media3's metadata-aware, gapless-capable path, not that
+  every platform decoder or format pair is acoustically seamless.
+- **Level 3 — sample-perfect/acoustic gapless authority: NOT ESTABLISHED.** No
+  captured PCM or acoustic output proves that zero samples were inserted,
+  dropped, or altered at a physical output boundary. Event timing, emulator
+  playback, metadata, and absence of underruns are insufficient for that claim.
+
 ## Q2.1 coverage map
 
 | Behavior | Coverage | Q2.1 classification |
@@ -160,3 +236,19 @@ explicitly changes the contract.
 | missing and duplicate restored occurrences | `PlaybackRestoreTest` | correct and covered |
 | negative and beyond-duration restored position | `PlaybackRestoreTest` | actual unbounded-restoration defect corrected |
 | natural completion and seek-to-end transition result | contract boundary only | deferred to Q2.3 |
+
+## Q2.3 coverage map
+
+| Behavior | Coverage | Q2.3 classification |
+| --- | --- | --- |
+| ordinary A→B→C automatic completion and near-start successor position | bounded Media3 transition matrix | correct but previously undertested |
+| final item with repeat off and replacement after ended | bounded Media3 transition matrix | final Play-action defect corrected |
+| repeat-one natural versus manual next | bounded Media3 transition matrix plus semantic unit test | previously ambiguous; now established |
+| repeat-all wrap and authoritative shuffle successor | bounded Media3 transition matrix | correct but previously undertested |
+| near-end and exact-duration seeks | bounded Media3 transition matrix | Q2.2 boundary consequence established |
+| paused non-progression | bounded Media3 transition matrix | correct and covered |
+| background transition and foreground projection | dedicated API 36 integration | correct but previously undertested |
+| controller release/reconnect around boundary | dedicated API 36 integration | correct but previously undertested |
+| successor occurrence/index and position persistence | DataStore observation after automatic transition | correct but previously undertested |
+| WAV, FLAC, MP3, and AAC/M4A path continuity signals | debug AnalyticsListener/AudioSink observation | Level 2 established for tested pairs |
+| sample-perfect emitted-audio continuity | no PCM/acoustic capture authority | explicitly not established |
