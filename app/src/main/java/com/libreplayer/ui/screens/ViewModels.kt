@@ -252,12 +252,7 @@ class PlaybackViewModel(
         }
     }
 
-    fun playQueue(queue: List<Song>, startIndex: Int = 0) {
-        if (queue.isEmpty() || startIndex !in queue.indices) return
-        viewModelScope.launch {
-            playbackConnection.playQueue(queue, startIndex)
-        }
-    }
+    fun selectQueueItem(index: Int) = playbackConnection.selectQueueItem(index)
 
     fun addToQueue(song: Song) {
         viewModelScope.launch {

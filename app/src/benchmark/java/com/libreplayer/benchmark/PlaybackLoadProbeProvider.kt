@@ -37,6 +37,7 @@ import org.json.JSONObject
 class PlaybackLoadProbeProvider : ContentProvider() {
     private var observer: MediaController? = null
     private var playingMediaId: String? = null
+    private var semanticsQueueIds: List<String> = emptyList()
     private val events = PlaybackEvents()
 
     private val playerListener = object : Player.Listener {
@@ -89,6 +90,8 @@ class PlaybackLoadProbeProvider : ContentProvider() {
                 METHOD_PREPARE -> preparePlayback(application)
                 METHOD_SYNC -> observeLoad(application.appContainer.libraryRepository, false, arg)
                 METHOD_REBUILD -> observeLoad(application.appContainer.libraryRepository, true, arg)
+                METHOD_SEMANTICS -> exercisePlaybackSemantics(application)
+                METHOD_VERIFY_SEMANTICS -> verifyPlaybackSemantics()
                 METHOD_STOP -> stopPlayback()
                 else -> error("Unsupported playback-load probe method: $method")
             }
@@ -169,6 +172,172 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         return result
     }
 
+    private suspend fun exercisePlaybackSemantics(application: LibrePlayerApplication): Bundle {
+        val controller = connectedObserver()
+        val connection = application.appContainer.playbackConnection
+        val songsByIdentity = application.appContainer.libraryRepository.getAllSongs()
+            .mapNotNull { song -> song.fixtureIdentity()?.let { it to song } }
+            .toMap()
+        fun fixture(track: Int): Song {
+            val identity = fixtureIdentity(track)
+            return requireNotNull(songsByIdentity[identity]) { "Missing playback fixture: $identity" }
+        }
+
+        val initialQueue = listOf(fixture(9), fixture(10), fixture(11))
+        val replacementQueue = listOf(fixture(12), fixture(13))
+        val appendedSong = fixture(14)
+
+        withContext(Dispatchers.Main.immediate) {
+            controller.shuffleModeEnabled = false
+            controller.repeatMode = Player.REPEAT_MODE_OFF
+        }
+        awaitSnapshot(controller, "initial playback modes") {
+            !it.shuffleEnabled && it.repeatMode == Player.REPEAT_MODE_OFF
+        }
+        withContext(Dispatchers.Main.immediate) {
+            connection.playSong(initialQueue, 1)
+        }
+        awaitSnapshot(controller, "initial queue") { snapshot ->
+            snapshot.isContinuouslyActive(initialQueue[1].id) &&
+                snapshot.currentIndex == 1 &&
+                snapshot.mediaIds == initialQueue.map(Song::id)
+        }
+
+        withContext(Dispatchers.Main.immediate) {
+            controller.pause()
+            controller.pause()
+        }
+        awaitSnapshot(controller, "idempotent pause") { snapshot ->
+            snapshot.mediaId == initialQueue[1].id && !snapshot.playWhenReady && !snapshot.isPlaying
+        }
+        withContext(Dispatchers.Main.immediate) {
+            controller.play()
+            controller.play()
+        }
+        awaitActivePlayback(controller, initialQueue[1].id)
+
+        withContext(Dispatchers.Main.immediate) { connection.skipNext() }
+        awaitSnapshot(controller, "normal next") { it.mediaId == initialQueue[2].id && it.currentIndex == 2 }
+        withContext(Dispatchers.Main.immediate) { connection.skipNext() }
+        awaitSnapshot(controller, "final next with repeat off") {
+            it.mediaId == initialQueue[2].id && it.currentIndex == 2
+        }
+
+        withContext(Dispatchers.Main.immediate) { connection.skipPrevious() }
+        awaitSnapshot(controller, "previous item") { it.mediaId == initialQueue[1].id && it.currentIndex == 1 }
+        withContext(Dispatchers.Main.immediate) { controller.seekTo(7_000L) }
+        awaitSnapshot(controller, "position before previous restart") { it.positionMs >= 6_500L }
+        withContext(Dispatchers.Main.immediate) { connection.skipPrevious() }
+        awaitSnapshot(controller, "previous restarts current") {
+            it.mediaId == initialQueue[1].id && it.currentIndex == 1 && it.positionMs < 2_000L
+        }
+
+        withContext(Dispatchers.Main.immediate) {
+            controller.repeatMode = Player.REPEAT_MODE_OFF
+            connection.cycleRepeatMode()
+        }
+        awaitSnapshot(controller, "repeat all") { it.repeatMode == Player.REPEAT_MODE_ALL }
+        withContext(Dispatchers.Main.immediate) { connection.cycleRepeatMode() }
+        awaitSnapshot(controller, "repeat one") { it.repeatMode == Player.REPEAT_MODE_ONE }
+        withContext(Dispatchers.Main.immediate) { connection.skipNext() }
+        awaitSnapshot(controller, "manual next ignores repeat one") {
+            it.mediaId == initialQueue[2].id && it.repeatMode == Player.REPEAT_MODE_ONE
+        }
+
+        withContext(Dispatchers.Main.immediate) { controller.repeatMode = Player.REPEAT_MODE_ALL }
+        awaitSnapshot(controller, "repeat all before wrap") {
+            it.repeatMode == Player.REPEAT_MODE_ALL
+        }
+        withContext(Dispatchers.Main.immediate) { connection.selectQueueItem(2) }
+        awaitSnapshot(controller, "final item before repeat all wrap") {
+            it.currentIndex == 2 && it.mediaId == initialQueue[2].id
+        }
+        withContext(Dispatchers.Main.immediate) { connection.skipNext() }
+        awaitSnapshot(controller, "repeat all wraps manual next") {
+            it.mediaId == initialQueue[0].id && it.currentIndex == 0
+        }
+
+        withContext(Dispatchers.Main.immediate) {
+            connection.selectQueueItem(1)
+            connection.setShuffleEnabled(true)
+        }
+        val shuffledCurrent = awaitSnapshot(controller, "shuffle preserves current") {
+            it.mediaId == initialQueue[1].id && it.shuffleEnabled
+        }
+        val shuffledNextIndex = withContext(Dispatchers.Main.immediate) {
+            controller.nextMediaItemIndex
+        }
+        check(shuffledNextIndex in initialQueue.indices && shuffledNextIndex != shuffledCurrent.currentIndex)
+        withContext(Dispatchers.Main.immediate) { connection.skipNext() }
+        awaitSnapshot(controller, "shuffled next") {
+            it.currentIndex == shuffledNextIndex && it.mediaId == initialQueue[shuffledNextIndex].id
+        }
+        withContext(Dispatchers.Main.immediate) { connection.skipPrevious() }
+        awaitSnapshot(controller, "shuffled previous") {
+            it.mediaId == initialQueue[1].id && it.currentIndex == 1
+        }
+
+        withContext(Dispatchers.Main.immediate) { connection.selectQueueItem(2) }
+        awaitSnapshot(controller, "select existing queue occurrence") {
+            it.mediaId == initialQueue[2].id &&
+                it.currentIndex == 2 &&
+                it.mediaIds == initialQueue.map(Song::id) &&
+                it.repeatMode == Player.REPEAT_MODE_ALL &&
+                it.shuffleEnabled
+        }
+
+        withContext(Dispatchers.Main.immediate) { connection.playSong(replacementQueue, 1) }
+        awaitSnapshot(controller, "queue replacement") {
+            it.isContinuouslyActive(replacementQueue[1].id) &&
+                it.currentIndex == 1 &&
+                it.mediaIds == replacementQueue.map(Song::id) &&
+                it.repeatMode == Player.REPEAT_MODE_ALL &&
+                it.shuffleEnabled
+        }
+        withContext(Dispatchers.Main.immediate) { connection.addToQueue(appendedSong) }
+        val expectedFinalQueue = replacementQueue.map(Song::id) + appendedSong.id
+        awaitSnapshot(controller, "append") {
+            it.mediaId == replacementQueue[1].id &&
+                it.currentIndex == 1 &&
+                it.mediaIds == expectedFinalQueue
+        }
+
+        withContext(Dispatchers.Main.immediate) {
+            observer?.removeListener(playerListener)
+            observer?.release()
+            observer = null
+        }
+        val reconnected = connectedObserver()
+        val finalSnapshot = awaitSnapshot(reconnected, "controller reconnection") {
+            it.isContinuouslyActive(replacementQueue[1].id) &&
+                it.currentIndex == 1 &&
+                it.mediaIds == expectedFinalQueue &&
+                it.repeatMode == Player.REPEAT_MODE_ALL &&
+                it.shuffleEnabled
+        }
+        playingMediaId = replacementQueue[1].id
+        semanticsQueueIds = expectedFinalQueue
+        return Bundle().apply {
+            putBoolean(KEY_SEMANTICS_PASSED, true)
+            putSnapshot("after", finalSnapshot)
+        }
+    }
+
+    private suspend fun verifyPlaybackSemantics(): Bundle {
+        val controller = connectedObserver()
+        val expectedMediaId = requireNotNull(playingMediaId) { "Semantics sequence was not prepared" }
+        val snapshot = awaitSnapshot(controller, "activity return") {
+            it.isContinuouslyActive(expectedMediaId) &&
+                it.mediaIds == semanticsQueueIds &&
+                it.repeatMode == Player.REPEAT_MODE_ALL &&
+                it.shuffleEnabled
+        }
+        return Bundle().apply {
+            putBoolean(KEY_SEMANTICS_PASSED, true)
+            putSnapshot("after", snapshot)
+        }
+    }
+
     private suspend fun stopPlayback(): Bundle {
         withContext(Dispatchers.Main.immediate) {
             observer?.stop()
@@ -177,6 +346,7 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         }
         observer = null
         playingMediaId = null
+        semanticsQueueIds = emptyList()
         events.reset()
         return Bundle().apply { putBoolean(KEY_STOPPED, true) }
     }
@@ -203,7 +373,23 @@ class PlaybackLoadProbeProvider : ContentProvider() {
                 controller.addListener(playerListener)
             }
             observer = controller
+            events.disconnected.set(false)
         }
+    }
+
+    private suspend fun awaitSnapshot(
+        controller: MediaController,
+        description: String,
+        predicate: (PlaybackSnapshot) -> Boolean,
+    ): PlaybackSnapshot {
+        val deadline = SystemClock.elapsedRealtime() + ACTIVE_TIMEOUT_MS
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val snapshot = withContext(Dispatchers.Main.immediate) { playbackSnapshot(controller) }
+            if (predicate(snapshot)) return snapshot
+            delay(ACTIVE_POLL_MS)
+        }
+        val snapshot = withContext(Dispatchers.Main.immediate) { playbackSnapshot(controller) }
+        error("Timed out waiting for $description: $snapshot")
     }
 
     private suspend fun awaitActivePlayback(controller: MediaController, mediaId: String) {
@@ -231,6 +417,10 @@ class PlaybackLoadProbeProvider : ContentProvider() {
             speed = controller.playbackParameters.speed,
             connected = controller.isConnected && !events.disconnected.get(),
             hasPlayerError = controller.playerError != null,
+            currentIndex = controller.currentMediaItemIndex,
+            mediaIds = List(controller.mediaItemCount) { index -> controller.getMediaItemAt(index).mediaId },
+            repeatMode = controller.repeatMode,
+            shuffleEnabled = controller.shuffleModeEnabled,
         )
 
     private fun PlaybackSnapshot.isContinuouslyActive(expectedMediaId: String): Boolean =
@@ -287,6 +477,10 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         putFloat("${prefix}Speed", snapshot.speed)
         putBoolean("${prefix}Connected", snapshot.connected)
         putBoolean("${prefix}HasPlayerError", snapshot.hasPlayerError)
+        putInt("${prefix}CurrentIndex", snapshot.currentIndex)
+        putStringArrayList("${prefix}MediaIds", ArrayList(snapshot.mediaIds))
+        putInt("${prefix}RepeatMode", snapshot.repeatMode)
+        putBoolean("${prefix}ShuffleEnabled", snapshot.shuffleEnabled)
     }
 
     private fun Bundle.putEvents(snapshot: PlaybackEventSnapshot) {
@@ -337,6 +531,10 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         val speed: Float,
         val connected: Boolean,
         val hasPlayerError: Boolean,
+        val currentIndex: Int,
+        val mediaIds: List<String>,
+        val repeatMode: Int,
+        val shuffleEnabled: Boolean,
     )
 
     private class PlaybackEvents {
@@ -390,6 +588,8 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         const val METHOD_PREPARE = "prepare"
         const val METHOD_SYNC = "sync"
         const val METHOD_REBUILD = "rebuild"
+        const val METHOD_SEMANTICS = "semantics"
+        const val METHOD_VERIFY_SEMANTICS = "verify-semantics"
         const val METHOD_STOP = "stop"
         const val TRACE_SECTION = "LibrePlayerPlaybackUnderLoad"
         const val LOG_TAG = "LibrePlayerPlaybackLoad"
@@ -397,6 +597,7 @@ class PlaybackLoadProbeProvider : ContentProvider() {
             "audio/artist-00010/album-00010/disc-01/track-00010.mp3"
         const val KEY_PREPARED = "prepared"
         const val KEY_STOPPED = "stopped"
+        const val KEY_SEMANTICS_PASSED = "semanticsPassed"
         const val KEY_PLAYBACK_FIXTURE_IDENTITY = "playbackFixtureIdentity"
         const val KEY_TRACK_DURATION_MS = "trackDurationMs"
         const val KEY_SYNCHRONIZATION_ELAPSED_NANOS = "synchronizationElapsedNanos"
@@ -425,5 +626,10 @@ class PlaybackLoadProbeProvider : ContentProvider() {
         private const val ACTIVE_TIMEOUT_MS = 15_000L
         private const val ACTIVE_POLL_MS = 50L
         private const val CONTROLLER_TIMEOUT_SECONDS = 15L
+
+        private fun fixtureIdentity(track: Int): String {
+            val padded = track.toString().padStart(5, '0')
+            return "audio/artist-$padded/album-$padded/disc-01/track-$padded.mp3"
+        }
     }
 }

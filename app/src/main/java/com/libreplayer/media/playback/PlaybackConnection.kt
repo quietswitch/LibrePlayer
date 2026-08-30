@@ -97,23 +97,34 @@ class PlaybackConnection(
     }
 
     suspend fun playSong(queue: List<Song>, startIndex: Int) {
+        replaceQueue(queue, startIndex, positionMs = 0L)
+    }
+
+    suspend fun playQueue(queue: List<Song>, startIndex: Int = 0, positionMs: Long = 0L) {
+        replaceQueue(queue, startIndex, positionMs)
+    }
+
+    private suspend fun replaceQueue(queue: List<Song>, startIndex: Int, positionMs: Long) {
+        if (!isValidQueueSelection(queue.size, startIndex)) return
         val activeController = controller ?: awaitController() ?: return
         currentPlaybackErrorMessage = null
         cachedQueue = queue
-        activeController.setMediaItems(queue.map(Song::toMediaItem), startIndex, 0L)
+        activeController.setMediaItems(
+            queue.map(Song::toMediaItem),
+            startIndex,
+            positionMs.coerceAtLeast(0L),
+        )
         activeController.prepare()
         activeController.playWhenReady = true
         activeController.play()
         refreshUiState()
     }
 
-    suspend fun playQueue(queue: List<Song>, startIndex: Int = 0, positionMs: Long = 0L) {
-        val activeController = controller ?: awaitController() ?: return
+    fun selectQueueItem(index: Int) {
+        val activeController = controller ?: return
+        if (!isValidQueueSelection(activeController.mediaItemCount, index)) return
         currentPlaybackErrorMessage = null
-        cachedQueue = queue
-        activeController.setMediaItems(queue.map(Song::toMediaItem), startIndex, positionMs)
-        activeController.prepare()
-        activeController.playWhenReady = true
+        activeController.seekToDefaultPosition(index)
         activeController.play()
         refreshUiState()
     }
@@ -126,21 +137,24 @@ class PlaybackConnection(
 
     fun togglePlayPause() {
         controller?.let { activeController ->
-            if (activeController.isPlaying) {
-                activeController.pause()
-                refreshUiState()
-                return
-            }
-
-            if (currentPlaybackErrorMessage != null) {
-                scope.launch {
+            when (
+                playbackToggleAction(
+                    playWhenReady = activeController.playWhenReady,
+                    hasPlaybackError = currentPlaybackErrorMessage != null,
+                )
+            ) {
+                PlaybackToggleAction.PAUSE -> {
+                    activeController.pause()
+                    refreshUiState()
+                }
+                PlaybackToggleAction.PLAY -> {
+                    activeController.play()
+                    refreshUiState()
+                }
+                PlaybackToggleAction.RETRY_CURRENT -> scope.launch {
                     retryCurrentItemFromLibrary(activeController)
                 }
-                return
             }
-
-            activeController.play()
-            refreshUiState()
         }
     }
 
@@ -194,10 +208,15 @@ class PlaybackConnection(
 
     fun skipPrevious() {
         controller?.let { activeController ->
-            if (activeController.currentPosition > 5_000L) {
-                activeController.seekTo(0L)
-            } else {
-                activeController.seekToPreviousMediaItem()
+            when (
+                previousAction(
+                    currentPositionMs = activeController.currentPosition,
+                    hasPreviousMediaItem = activeController.hasPreviousMediaItem(),
+                )
+            ) {
+                PreviousAction.RESTART_CURRENT -> activeController.seekTo(0L)
+                PreviousAction.SEEK_PREVIOUS -> activeController.seekToPreviousMediaItem()
+                PreviousAction.NO_OP -> Unit
             }
         }
     }
@@ -209,11 +228,7 @@ class PlaybackConnection(
 
     fun cycleRepeatMode() {
         val activeController = controller ?: return
-        activeController.repeatMode = when (activeController.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
-        }
+        activeController.repeatMode = nextRepeatMode(activeController.repeatMode)
         refreshUiState()
     }
 

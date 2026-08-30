@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.libreplayer.data.repository.AppSettings
 import com.libreplayer.data.repository.PlaybackUiState
+import com.libreplayer.media.playback.queueOccurrenceKey
 import com.libreplayer.ui.components.ArtworkVariant
 import com.libreplayer.ui.components.ArtworkThumbnail
 import com.libreplayer.ui.components.DividerItem
@@ -281,7 +282,10 @@ fun PlaybackQueueScreen(
             )
         } else {
             LazyColumn(contentPadding = contentPadding) {
-                itemsIndexed(playbackState.queue, key = { _, song -> song.id }) { index, song ->
+                itemsIndexed(
+                    playbackState.queue,
+                    key = { index, song -> queueOccurrenceKey(index, song.id) },
+                ) { index, song ->
                     SongRow(
                         title = displayTitle(song, settings),
                         subtitle = displaySubtitle(song),

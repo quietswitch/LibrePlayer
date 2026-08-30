@@ -57,4 +57,30 @@ class PlaybackRestoreTest {
         assertThat(selection.index).isEqualTo(2)
         assertThat(selection.positionMs).isEqualTo(12_345L)
     }
+
+    @Test
+    fun `no surviving items restores an empty selection`() {
+        val selection = restoredQueueSelection(
+            queueIds = savedQueue,
+            savedCurrentIndex = 2,
+            restoredIds = emptyList(),
+            savedPositionMs = 12_345L,
+        )
+
+        assertThat(selection.index).isEqualTo(-1)
+        assertThat(selection.positionMs).isEqualTo(0L)
+    }
+
+    @Test
+    fun `restored position is never negative`() {
+        val selection = restoredQueueSelection(
+            queueIds = savedQueue,
+            savedCurrentIndex = 1,
+            restoredIds = savedQueue,
+            savedPositionMs = -1L,
+        )
+
+        assertThat(selection.index).isEqualTo(1)
+        assertThat(selection.positionMs).isEqualTo(0L)
+    }
 }

@@ -287,7 +287,7 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                         playbackState = playbackState,
                         settings = settings,
                         onBack = navController::navigateUp,
-                        onPlaySongAt = { index -> playbackViewModel.playQueue(playbackState.queue, index) },
+                        onPlaySongAt = playbackViewModel::selectQueueItem,
                     )
                 }
                 composable(
