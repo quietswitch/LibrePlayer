@@ -40,6 +40,34 @@ class PlaybackSemanticsTest {
     }
 
     @Test
+    fun `primary control represents play intent while preserving ended restart semantics`() {
+        assertThat(
+            primaryControlShowsPause(
+                playWhenReady = true,
+                playbackState = Player.STATE_READY,
+            ),
+        ).isTrue()
+        assertThat(
+            primaryControlShowsPause(
+                playWhenReady = true,
+                playbackState = Player.STATE_BUFFERING,
+            ),
+        ).isTrue()
+        assertThat(
+            primaryControlShowsPause(
+                playWhenReady = false,
+                playbackState = Player.STATE_READY,
+            ),
+        ).isFalse()
+        assertThat(
+            primaryControlShowsPause(
+                playWhenReady = true,
+                playbackState = Player.STATE_ENDED,
+            ),
+        ).isFalse()
+    }
+
+    @Test
     fun `previous restarts current item only beyond threshold`() {
         assertThat(previousAction(5_001L, hasPreviousMediaItem = true))
             .isEqualTo(PreviousAction.RESTART_CURRENT)

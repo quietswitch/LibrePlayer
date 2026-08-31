@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "authority": "Q2.4 synthetic audio-focus fixture only; not production media",
+  "source": "tools/performance-fixtures/generate_audio_focus_fixture.ps1",
+  "signal": "20.000-second 440 Hz mono sine at 48000 Hz",
+  "files": [
+    {
+      "name": "audio-focus.flac",
+      "sha256": "92cf7501065e8c0c0582f5e157940fb240b9bf0aeed6eeca06520fc592ae94f4",
+      "bytes": 272022,
+      "codec": "flac",
+      "container": "flac",
+      "duration_ms": 20000,
+      "bits_per_sample": 16
+    }
+  ]
+}

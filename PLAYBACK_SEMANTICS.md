@@ -1,6 +1,6 @@
 # Playback and queue semantics
 
-This document is the Q2.1-Q2.3 contract for LibrePlayer 1.0.4. It describes current
+This document is the Q2.1-Q2.4 contract for LibrePlayer 1.0.4. It describes current
 product behavior; later playback work should preserve it unless a milestone
 explicitly changes the contract.
 
@@ -207,6 +207,64 @@ explicitly changes the contract.
   dropped, or altered at a physical output boundary. Event timing, emulator
   playback, metadata, and absence of underruns are insufficient for that claim.
 
+## Audio focus and interruption semantics
+
+### Authority and play-intent model
+
+- The single service `ExoPlayer` is configured with Media3 audio attributes
+  `USAGE_MEDIA` and `AUDIO_CONTENT_TYPE_MUSIC`, with automatic focus handling
+  enabled. Media3 owns `AudioManager` focus requests, losses, gains, and ducking;
+  LibrePlayer has no second production focus request, focus listener, or
+  application pause/resume state machine.
+- `playWhenReady` represents user playback intent. `isPlaying` reports whether
+  media is actually advancing, and `playbackSuppressionReason` explains a
+  temporary platform constraint. Therefore `isPlaying == false` is not by
+  itself a user Pause.
+- The primary transport control represents the action it will perform. Ordinary
+  playing, buffering with active play intent, and transient focus suppression
+  display Pause because activating the control cancels intended playback or
+  automatic resume. An explicitly paused player displays Play. Q2.3's final
+  `STATE_ENDED` case remains an exception: it displays Play and restarts the
+  final occurrence even when Media3 retains `playWhenReady == true`.
+
+### Focus changes
+
+- On API 36 with Media3 1.9.2, transient loss retains the item, queue, index,
+  `STATE_READY`, and `playWhenReady == true`, sets
+  `PLAYBACK_SUPPRESSION_REASON_TRANSIENT_AUDIO_FOCUS_LOSS`, stops `isPlaying`,
+  and prevents material position advancement. Gain clears suppression and
+  automatically resumes only while that play intent remains true.
+- If the user presses Pause during transient loss, `playWhenReady` becomes
+  false with `PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST`, transient suppression
+  clears, and later focus gain does not resume playback.
+- With music attributes, `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` granted to another
+  app leaves LibrePlayer ready, unsuppressed, and playing with position
+  advancing. Media3/platform owns the output-level change. Q2.4 establishes the
+  policy and state path, not an exact acoustic attenuation.
+- A permanent focus loss leaves the current item and queue intact but changes
+  `playWhenReady` to false with
+  `PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS`; the player remains ready,
+  unsuppressed, and not playing. Merely abandoning the competing focus grant
+  does not restart playback. A later explicit Play is a user request that
+  reacquires focus and continues from the coherent current position.
+
+### Background, reconnection, and persistence
+
+- Focus handling belongs to `PlaybackService` and does not require an Activity.
+  The service remains foreground during transient suppression, resumes after
+  gain when intent remains active, and projects the same state when the UI
+  returns.
+- A controller connected during transient suppression observes the same item,
+  index, ready state, active play intent, transient suppression reason, stopped
+  position, and MediaSession. It observes the resumed state after gain.
+- Existing event-driven/five-second persistence stores `playWhenReady == true`
+  during temporary suppression rather than inventing a user Pause. Explicit
+  Pause and permanent focus loss eventually persist false. No focus-event log,
+  database write loop, or increased persistence cadence is introduced.
+- Authority is bounded to Android audio-focus grants on the API 36 reference
+  emulator. It does not represent a cellular/VoIP call, OEM compatibility
+  matrix, output-route or becoming-noisy policy, or acoustic duck measurement.
+
 ## Q2.1 coverage map
 
 | Behavior | Coverage | Q2.1 classification |
@@ -252,3 +310,18 @@ explicitly changes the contract.
 | successor occurrence/index and position persistence | DataStore observation after automatic transition | correct but previously undertested |
 | WAV, FLAC, MP3, and AAC/M4A path continuity signals | debug AnalyticsListener/AudioSink observation | Level 2 established for tested pairs |
 | sample-perfect emitted-audio continuity | no PCM/acoustic capture authority | explicitly not established |
+
+## Q2.4 coverage map
+
+| Behavior | Coverage | Q2.4 classification |
+| --- | --- | --- |
+| music/media attributes and Media3-owned focus | service architecture audit plus F1 | correct and covered |
+| transient loss/gain and position suppression | real API 36 focus grants, F2 | correct but previously untested |
+| primary control during buffering/suppression and final ended | shared semantic helper unit test plus F2/F3 | actual UI/action mismatch corrected |
+| user Pause during transient loss | real API 36 focus grant and UI-command path, F3 | correct after shared-control correction |
+| transient-can-duck music policy | real API 36 focus grant, F4 | platform/Media3 policy established; attenuation unclaimed |
+| permanent loss and explicit later Play | real API 36 focus grants and Player reasons, F5/F6 | correct but previously untested |
+| background service focus behavior | real API 36 background sequence, F7 | correct but previously untested |
+| controller reconnect while suppressed | real API 36 reconnect sequence, F8 | correct but previously untested |
+| rapid bounded loss/gain sequence | two real transient cycles, F9 | correct and covered |
+| play-intent persistence during transient/permanent loss | DataStore observation during F2/F3/F5 | correct but previously untested |

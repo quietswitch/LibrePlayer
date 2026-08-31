@@ -32,6 +32,11 @@ internal fun playbackToggleAction(
     else -> PlaybackToggleAction.PLAY
 }
 
+internal fun primaryControlShowsPause(
+    playWhenReady: Boolean,
+    playbackState: Int,
+): Boolean = playWhenReady && playbackState != Player.STATE_ENDED
+
 internal fun previousAction(
     currentPositionMs: Long,
     hasPreviousMediaItem: Boolean,

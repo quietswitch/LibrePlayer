@@ -193,11 +193,11 @@ fun NowPlayingScreen(
                 }
                 Button(onClick = onTogglePlayPause) {
                     Icon(
-                        imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                        imageVector = if (playbackState.primaryControlShowsPause) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (playbackState.primaryControlShowsPause) "Pause" else "Play",
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text(if (playbackState.isPlaying) "Pause" else "Play")
+                    Text(if (playbackState.primaryControlShowsPause) "Pause" else "Play")
                 }
                 IconButton(onClick = onSkipNext) {
                     Icon(Icons.Filled.SkipNext, contentDescription = "Next")

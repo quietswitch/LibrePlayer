@@ -266,6 +266,12 @@ class PlaybackConnection(
             isConnected = true,
             isLoading = activeController.playbackState == Player.STATE_BUFFERING,
             isPlaying = activeController.isPlaying,
+            playbackState = activeController.playbackState,
+            playbackSuppressionReason = activeController.playbackSuppressionReason,
+            primaryControlShowsPause = primaryControlShowsPause(
+                playWhenReady = activeController.playWhenReady,
+                playbackState = activeController.playbackState,
+            ),
             currentSong = currentSong,
             queue = cachedQueue,
             currentIndex = activeController.currentMediaItemIndex,
