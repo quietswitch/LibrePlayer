@@ -13,6 +13,11 @@
             android:authorities="${applicationId}.audio-focus-probe"
             android:exported="true"
             tools:ignore="ExportedContentProvider" />
+        <provider
+            android:name=".debug.SystemControlProbeProvider"
+            android:authorities="${applicationId}.system-control-probe"
+            android:exported="true"
+            tools:ignore="ExportedContentProvider" />
     </application>
 
 </manifest>

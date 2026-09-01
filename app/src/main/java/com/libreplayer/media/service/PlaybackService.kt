@@ -3,6 +3,7 @@ package com.libreplayer.media.service
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -12,7 +13,9 @@ import androidx.media3.session.MediaSessionService
 import com.libreplayer.BuildConfig
 import com.libreplayer.app.LibrePlayerApplication
 import com.libreplayer.app.MainActivity
+import com.libreplayer.media.playback.PREVIOUS_RESTART_THRESHOLD_MS
 import com.libreplayer.media.playback.PlaybackSnapshot
+import com.libreplayer.media.playback.PreviousAction
 import com.libreplayer.media.playback.normalizedSeekPosition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +86,7 @@ class PlaybackService : MediaSessionService() {
                 }
             }
 
-        mediaSession = MediaSession.Builder(this, player)
+        mediaSession = MediaSession.Builder(this, SystemControlPlayer(player))
             .setSessionActivity(sessionActivity())
             .build()
         startPeriodicPersistence()
@@ -202,6 +205,31 @@ class PlaybackService : MediaSessionService() {
             }
         }
     }
+}
+
+@UnstableApi
+internal class SystemControlPlayer(player: Player) : ForwardingPlayer(player) {
+    override fun seekToPrevious() {
+        when (
+            systemPreviousAction(
+                currentPositionMs = currentPosition,
+                hasPreviousMediaItem = hasPreviousMediaItem(),
+            )
+        ) {
+            PreviousAction.RESTART_CURRENT -> seekTo(0L)
+            PreviousAction.SEEK_PREVIOUS -> seekToPreviousMediaItem()
+            PreviousAction.NO_OP -> Unit
+        }
+    }
+}
+
+internal fun systemPreviousAction(
+    currentPositionMs: Long,
+    hasPreviousMediaItem: Boolean,
+): PreviousAction = when {
+    currentPositionMs >= PREVIOUS_RESTART_THRESHOLD_MS -> PreviousAction.RESTART_CURRENT
+    hasPreviousMediaItem -> PreviousAction.SEEK_PREVIOUS
+    else -> PreviousAction.NO_OP
 }
 
 internal data class RestoredQueueSelection(

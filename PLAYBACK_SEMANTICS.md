@@ -1,6 +1,6 @@
 # Playback and queue semantics
 
-This document is the Q2.1-Q2.4 contract for LibrePlayer 1.0.4. It describes current
+This document is the Q2.1-Q2.5 contract for LibrePlayer 1.0.4. It describes current
 product behavior; later playback work should preserve it unless a milestone
 explicitly changes the contract.
 
@@ -264,6 +264,93 @@ explicitly changes the contract.
 - Authority is bounded to Android audio-focus grants on the API 36 reference
   emulator. It does not represent a cellular/VoIP call, OEM compatibility
   matrix, output-route or becoming-noisy policy, or acoustic duck measurement.
+
+## Background, MediaSession, and system-control semantics
+
+### Service and session ownership
+
+- `PlaybackService` is the sole playback owner. Its one `ExoPlayer` is the media
+  state authority and its one `MediaSession` is the system-facing authority.
+  Controllers, including LibrePlayer's application-scoped `PlaybackConnection`,
+  observe and command that session; they do not own duplicate playback state.
+- Media3 creates the service when the first controller connects, maintains its
+  foreground media notification, and applies the platform foreground-service
+  lifecycle. Service destruction releases the session, player, listeners, save
+  jobs, and service scope exactly once.
+- Intentional playback continues when the Activity backgrounds, is recreated, or
+  its task is dismissed. No Activity callback is required. Reopening the Activity
+  observes the existing queue, occurrence, position, modes, play intent,
+  suppression, and playback state without replacing or restarting them.
+- A controller released while the service remains alive can reconnect to the
+  existing session. The session's queue and player state replace any stale local
+  projection; reconnection does not create a player or session.
+
+### External transport commands
+
+- Standard controller commands for Play/Pause, seeking, next/previous traversal,
+  repeat, and shuffle remain available when supported by the current timeline.
+  LibrePlayer adds no custom session command.
+- External Pause clears play intent, including while audio-focus-suppressed, and
+  therefore cancels pending automatic resume. External Play resumes ordinary
+  paused playback. At final repeat-off `STATE_ENDED`, the first external Play
+  restarts the final occurrence from its default position, matching Q2.3.
+- External Next follows Media3 timeline traversal, including manual traversal
+  while repeat-one is selected and shuffle's authoritative next occurrence.
+  External Previous applies the Q2.5 system boundary: below five seconds it
+  selects the previous timeline item when one exists; at or above five seconds
+  it restarts the current item. The foreground control retains its accepted Q2.1
+  exact-threshold behavior.
+- External ordinary seeks remain Media3 commands against the live player. The
+  player supplies duration/timeline normalization and remains the live position
+  authority; Q2.5 does not add another seek state or polling path.
+
+### Notification and lifecycle policy
+
+- Media3 owns the single media notification and derives it from the same session,
+  player state, available commands, and `MediaItem.MediaMetadata`. Automatic
+  transitions update its synthetic-tested identity without an Activity. Q2.5
+  does not customize notification layout, artwork, colors, or typography.
+- Dismissing the task during active intentional playback retains the service,
+  foreground-service state, one notification key, session, and advancing
+  position. On the API 36 authority emulator, a paused task dismissal retained
+  the service, session, queue, position, and Play notification while Media3
+  removed the notification's foreground-service flag. A final-ended isolated
+  projection retained the final item and one notification with a Play action;
+  Media3 owns the bounded transition out of foreground state and eventual idle
+  service destruction. LibrePlayer does not make the service immortal or add a
+  competing task-removal policy.
+- There is no separate user-facing Stop or notification-dismiss contract. Test
+  probes may clear their synthetic queue for cleanup, but product controls do not
+  expose that operation.
+- While a session is active, routed media-key Play/Pause, Next, and Previous use
+  the same session-player command paths. Cold media-button playback resumption is
+  not established: LibrePlayer does not declare `MediaButtonReceiver` or add the
+  required cold-resumption callback in Q2.5.
+- Normal backgrounding, Activity recreation, task dismissal, and process death
+  are distinct. Existing persisted restoration can reconstruct a saved local
+  queue, occurrence, normalized position, repeat, shuffle, and play intent after
+  process recreation; it does not promise uninterrupted playback while the
+  process is dead or universal process-survival behavior.
+
+## Q2.5 coverage map
+
+| Behavior | Coverage | Classification |
+|---|---|---|
+| Foreground to background | B1 real service/session/notification and position observation | Established |
+| Activity destroy/recreate | B2 configuration recreation with PID/session/queue continuity | Established |
+| Controller reconnect | B3 real external controller release/reconnect, 500 ms projection tolerance | Established |
+| System Pause/Play | B4 external `MediaController` commands | Established |
+| System Next | B5 external traversal of the Media3 timeline | Established |
+| System Previous | B6 external 4 s previous-item and 6 s restart cases; exact 5 s unit boundary | Established |
+| System seek | B7 one ordinary external seek against the live player | Established |
+| Background natural transition | B8 short-to-long synthetic successor plus session, notification, and reopened UI | Established |
+| Final-ended restart | B9 final `STATE_ENDED` and first external Play restart; isolated notification Play proof | Established |
+| Focus suppression | B10 transient real focus aggressor and external Pause cancellation | Established |
+| Playing task removal | B11 real Recents dismissal and reopen | Established |
+| Paused task removal | B12 real Recents dismissal with retained paused session/notification and non-foreground notification | Established |
+| Media keys | B13 routed Pause, Play, Next, and Previous key events | Established for an active API 36 session |
+| Process death | Accepted Q2.1/Q2.2 restoration authority; no new matrix | Bounded |
+| Cold media-button resumption | No receiver/callback contract | Deferred |
 
 ## Q2.1 coverage map
 
