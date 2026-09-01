@@ -3,7 +3,9 @@ package com.libreplayer.debug
 import android.content.ComponentName
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.Context
 import android.database.Cursor
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
@@ -30,7 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
-/** Debug-only Q2.4 authority over the target player's real Media3 audio-focus state. */
+/** Debug-only Q2.4/Q2.6 observation of real Media3 focus and output-safety state. */
 @UnstableApi
 class AudioFocusProbeProvider : ContentProvider() {
     private var observer: MediaController? = null
@@ -313,6 +315,12 @@ class AudioFocusProbeProvider : ContentProvider() {
             hasPlayerError = controller.playerError != null,
             audioUsage = controller.audioAttributes.usage,
             audioContentType = controller.audioAttributes.contentType,
+            outputDeviceTypes = (
+                requireNotNull(context).getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                ).getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .map { device -> device.type }
+                .distinct()
+                .sorted(),
             uiState = uiState,
         )
     }
@@ -348,6 +356,7 @@ class AudioFocusProbeProvider : ContentProvider() {
         val hasPlayerError: Boolean,
         val audioUsage: Int,
         val audioContentType: Int,
+        val outputDeviceTypes: List<Int>,
         val uiState: PlaybackUiState,
     ) {
         fun toBundle(events: FocusEvents): Bundle = Bundle().apply {
@@ -364,12 +373,14 @@ class AudioFocusProbeProvider : ContentProvider() {
             putBoolean("hasPlayerError", hasPlayerError)
             putInt("audioUsage", audioUsage)
             putInt("audioContentType", audioContentType)
+            putIntArray("outputDeviceTypes", outputDeviceTypes.toIntArray())
             putInt("lastPlayWhenReadyReason", events.lastPlayWhenReadyReason.get())
             putString("playWhenReadyEvents", events.playWhenReadyChanges.joinToString("|"))
             putString("suppressionEvents", events.suppressionChanges.joinToString("|"))
             putString("isPlayingEvents", events.isPlayingChanges.joinToString("|"))
             putInt("playerErrors", events.playerErrors.get())
             putInt("sessionDisconnects", events.sessionDisconnects.get())
+            putString("uiMediaId", uiState.currentSong?.id)
             putBoolean("uiPlayWhenReady", uiState.playWhenReady)
             putBoolean("uiIsPlaying", uiState.isPlaying)
             putInt("uiPlaybackState", uiState.playbackState)

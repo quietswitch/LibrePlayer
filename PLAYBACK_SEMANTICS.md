@@ -352,6 +352,88 @@ explicitly changes the contract.
 | Process death | Accepted Q2.1/Q2.2 restoration authority; no new matrix | Bounded |
 | Cold media-button resumption | No receiver/callback contract | Deferred |
 
+## Device switching and output robustness semantics
+
+### Output-route authority and safety policy
+
+- Android owns physical audio routing and Media3 owns LibrePlayer's route-loss
+  safety response. `PlaybackService` configures music/media `AudioAttributes`,
+  delegates focus to Media3, and explicitly enables
+  `setHandleAudioBecomingNoisy(true)` on its sole `ExoPlayer`. There is no
+  LibrePlayer route manager, Bluetooth state machine, wired-headset receiver,
+  `AudioDeviceCallback`, route polling loop, or second player/session.
+- Media3 1.9.2's installed bytecode registers an application-context receiver
+  for `android.media.AUDIO_BECOMING_NOISY` while the player is enabled and
+  unregisters it on release. Its callback sets `playWhenReady` to false with
+  `PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY` (3).
+- A becoming-noisy event while playing is therefore an actual safety pause:
+  the current item, occurrence, queue, ready state, and coherent position are
+  retained; `playWhenReady == false`, `isPlaying == false`, and suppression
+  remains `PLAYBACK_SUPPRESSION_REASON_NONE`. Audio must not continue merely
+  because Android could reroute it to a speaker.
+- Output availability by itself never creates a LibrePlayer Play request. After
+  a safety pause, route return leaves playback paused and explicit user/system
+  Play is required. A noisy event while already paused cannot start playback or
+  alter the queue. Media3 may report the noisy reason when it replaces another
+  unchanged paused reason; repeated identical noisy events are state-idempotent.
+- LibrePlayer does not pause merely because an `AudioDeviceInfo` changed. A safe
+  handoff remains Android/AudioFlinger/Media3 routing authority and should keep
+  playback live. The API 36 emulator exposed no supported route-switch command,
+  wired endpoint, or A2DP endpoint, so that distinct handoff was not simulated.
+
+### Service, session, persistence, and focus distinction
+
+- The noisy receiver belongs to the service-owned player, so it works without a
+  foreground Activity. The existing `MediaSession`, controller projection, UI,
+  and Media3 notification all observe the paused state. The notification changes
+  its primary action to Play; the first Play resumes the retained item.
+- Controller release/reconnect after the event observes the same item, index,
+  queue, position, ready state, false play intent, no suppression, and the same
+  single session. Existing event-driven persistence stores
+  `playWhenReady == false`; later controller or process restoration cannot infer
+  permission to resume merely from output availability.
+- Route loss is not transient focus loss. A noisy pause clears play intent with
+  reason 3 and uses no playback suppression. Transient focus loss retains
+  `playWhenReady == true`, uses transient-audio-focus suppression, and resumes on
+  gain unless the user cancels intent. Q2.4 remains the focus authority.
+- Current debug observation uses only privacy-safe `AudioManager` output device
+  type integers and Player callbacks. It registers no device callback and stores
+  no endpoint name or address. The protected noisy broadcast cannot be originated
+  by the Android 16 shell or app UID; the userdebug reference AVD therefore used
+  one bounded root-origin broadcast to the real Media3 receiver. This apparatus
+  and output-type observation are absent from release.
+
+### Hardware authority limits
+
+- The API 36 authority emulator's active media output was its built-in speaker;
+  it had no connected wired or Bluetooth A2DP endpoint. Q2.6 establishes the
+  shared Android/Media3 becoming-noisy state contract, not a claim that every OEM
+  emits an identical sequence for every accessory.
+- Wired insertion/removal and Bluetooth A2DP disconnect/reconnect remain limited
+  to the established platform/noisy contract; physical endpoint confirmation is
+  deferred. No Bluetooth permission, physical-reference package, existing user
+  installation, app data, personal media, or device identifier was used.
+- Universal Bluetooth behavior, OEM routing variations, user-selectable output,
+  codec/DAC paths, latency, bit-perfect output, and acoustic continuity remain
+  outside Q2.6.
+
+## Q2.6 coverage map
+
+| Behavior | Coverage | Classification |
+| --- | --- | --- |
+| Baseline output and active playback | D1 real service/player/session plus privacy-safe device-type observation | Established on API 36 emulator |
+| Becoming noisy while playing | D2 protected system broadcast to Media3 receiver; exact Player reason/state | Correct but previously untested |
+| Route return and explicit resume | D3 stable safety pause plus D4 normal Play | State policy established; physical return deferred |
+| Noisy while paused | D5 protected broadcast against an already paused player | Correct and covered |
+| Background handling and notification | D6 background service event, Play action, reopened UI | Correct and covered |
+| Controller reconnect | D7 external controller release/reconnect | Correct and covered |
+| Safety-pause persistence | D8 existing snapshot-store observation | Correct and covered |
+| Repeated noisy sequence | D9 two bounded protected broadcasts | Correct and covered |
+| Safe route handoff without noisy | No supported route switch on reference emulator | Limited / deferred |
+| Natural transition near route event | D11 one automatic A→B then noisy, retained successor timeline | Correct and covered |
+| Wired removal | No wired endpoint or credible emulator control | Physical confirmation deferred |
+| Bluetooth route loss | No A2DP endpoint; no OEM/device matrix | Physical/OEM confirmation deferred |
+
 ## Q2.1 coverage map
 
 | Behavior | Coverage | Q2.1 classification |
