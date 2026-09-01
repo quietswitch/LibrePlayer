@@ -45,7 +45,10 @@ class PlaybackConnection(
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
-            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+            if (
+                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) &&
+                player.playerError == null
+            ) {
                 currentPlaybackErrorMessage = null
             }
             if (
@@ -64,6 +67,13 @@ class PlaybackConnection(
             currentPlaybackErrorMessage = playbackErrorMessage(error.errorCode)
             controller?.pause()
             refreshUiState()
+        }
+
+        override fun onPlayerErrorChanged(error: PlaybackException?) {
+            if (error == null && currentPlaybackErrorMessage != null) {
+                currentPlaybackErrorMessage = null
+                refreshUiState()
+            }
         }
     }
 

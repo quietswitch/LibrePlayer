@@ -434,6 +434,102 @@ explicitly changes the contract.
 | Wired removal | No wired endpoint or credible emulator control | Physical confirmation deferred |
 | Bluetooth route loss | No A2DP endpoint; no OEM/device matrix | Physical/OEM confirmation deferred |
 
+## Adversarial media and failure recovery semantics
+
+### Failure authority and taxonomy
+
+- Media3 remains the playback and error-code authority. LibrePlayer does not add
+  a decoder, extractor, failure classifier, retry worker, recovery queue, or
+  scanner trigger. A fatal local-source error leaves the one `ExoPlayer` and one
+  `MediaSession` alive with the failed occurrence current and the queue intact.
+- The API 36 / Media3 1.9.2 authority matrix established these real paths:
+  unavailable file → `ERROR_CODE_IO_FILE_NOT_FOUND` (2005) backed by
+  `FileDataSourceException`; zero bytes and deterministic garbage →
+  `ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED` (3003) backed by
+  `UnrecognizedInputFormatException`; deterministically truncated FLAC →
+  `ERROR_CODE_IO_UNSPECIFIED` (2000) backed by `EOFException`.
+- A separate deterministic decoder initialization/runtime failure was not
+  available from the supported synthetic formats. Decoder-specific behavior is
+  therefore deferred rather than inferred from extractor or I/O failures.
+- Deleting a benchmark-owned successor or current FLAC after the queue started
+  did not interrupt playback on the authority emulator: Media3 retained an
+  already-open/buffered file descriptor. This establishes state coherence, not
+  a promise that deletion must be observed immediately on every filesystem.
+
+### Accepted recovery policy: USER-DIRECTED
+
+- LibrePlayer stops on the failed occurrence. It does not automatically skip,
+  retry, remove, blacklist, or rebuild around the item. Stable failure state is
+  `STATE_IDLE`, `playWhenReady == false`, `isPlaying == false`, suppression
+  `NONE`, current failed identity/index retained, and a bounded UI message.
+- Next, Previous, or selecting a different occurrence is one recovery action.
+  If that action actually leaves an errored occurrence, the session player
+  prepares and plays the selected occurrence. Normal transport is unchanged
+  when no error exists, and Next at the failed final item does not retry it.
+- Play on the failed occurrence remains a deliberate retry. The existing
+  library lookup can replace a stale item with a uniquely rediscovered record;
+  otherwise the unavailable message remains. Each press is one attempt—there is
+  no automatic or unbounded retry.
+- A valid→bad→valid queue stops on the bad successor. It never leaps to the next
+  valid item without a command. Consecutive bad items fail once per explicit
+  traversal; an all-invalid three-item queue settles on its final error with no
+  state oscillation, busy loop, repeated prepare, or rapid transition cycle.
+
+### UI, service, session, and persistence
+
+- `PlaybackConnection` projects Media3 errors into the existing mini-player and
+  Now Playing error text without hiding item/queue identity. A transition onto
+  a bad successor no longer clears that message while `playerError` is active;
+  successful prepare clears the stale message through `onPlayerErrorChanged`.
+- The safety pause is persisted when play intent changes, including the case
+  where playback is already non-playing at the fatal callback. The snapshot
+  retains queue IDs, failed index, coherent position, and
+  `playWhenReady == false`; exception codes, messages, causes, and blacklists are
+  not persisted. Restoration therefore cannot inherit stale active play intent.
+- Background failure retains the service, single session, failed item metadata,
+  and a notification with Play. An external session Next recovers to a valid
+  item and updates the notification to Pause without opening the Activity.
+  Controller release/reconnect observes the same stable error and session.
+- Recovery does not clear the queue or mutate media, playlists, favorites, Room
+  song records, or the library catalog. Playback failure and library
+  reconciliation remain separate: a later normal MediaStore/SAF synchronization
+  may reconcile a genuinely missing record, but Q2.7 never triggers one.
+
+### Deterministic fixture authority
+
+- Debug-only fixture generation copies existing synthetic FLAC assets into the
+  app cache and creates the malformed variants from fixed bytes. The files are
+  regenerated for each scenario and removed during probe cleanup. No malformed
+  file, fixture provider, personal metadata, or benchmark component is packaged
+  in release.
+
+| Fixture | Size | SHA-256 / identity | Intended category |
+| --- | ---: | --- | --- |
+| `good-a.flac`, `good-c.flac` | 34,617 B each | `99ba43f6984bb05a8753f0edf3df44f2f10a371f0d2f4a161a7401c1e1b91122` | valid baseline/transition |
+| `good-long.flac`, `deletable.flac` | 272,022 B each | `92cf7501065e8c0c0582f5e157940fb240b9bf0aeed6eeca06520fc592ae94f4` | valid long/deletion |
+| `missing.flac` | absent | deterministic nonexistent cache path | source unavailable |
+| `zero.flac` | 0 B | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | empty container |
+| `garbage.mp3` | 3,072 B | `33986ba530755f39dbc3d5f8a412108357bc4e05f8dee94edbc0cb4091e1472d` | unrecognized container |
+| `truncated.flac` | 8,192 B | `6c5886891619a5805992ceeb1ef580608cbabbd4af3c571c4d32aef3cf729260` | truncated I/O |
+
+## Q2.7 coverage map
+
+| Behavior | Coverage | Classification |
+| --- | --- | --- |
+| Valid baseline | E1 real local file, service, session, and advancing position | Established |
+| Missing source and recovery | E2/E3 real absent file plus one UI Next | Recovery defect corrected |
+| Zero and garbage files | E4/E5 real extractor failures plus system Next/direct selection | Established |
+| Truncated source | E6 real EOF-backed FLAC failure plus Previous | Established |
+| Bad natural successor | E7 automatic valid→bad boundary and explicit recovery | Error-message/recovery defect corrected |
+| Consecutive/all-invalid queues | E8 one error per command and stable final failure | Bounded; no auto-skip loop |
+| Background/system recovery | E9/E11 notification, session, external Next, reopened UI | Established |
+| Controller reconnect | E10 live errored session projection | Established |
+| Normal transition after error | E12 recovered valid A→C | Established |
+| Seek/focus/noisy after recovery | E13/E14 plus focused Q2.6 path | Established |
+| Failed play-intent persistence | Existing snapshot store observed after error | Stale-intent defect corrected |
+| File deleted after queue/start | Cache-only successor/current deletion | Open-descriptor continuation established |
+| Decoder init/runtime failure | No deterministic supported fixture | Deferred |
+
 ## Q2.1 coverage map
 
 | Behavior | Coverage | Q2.1 classification |

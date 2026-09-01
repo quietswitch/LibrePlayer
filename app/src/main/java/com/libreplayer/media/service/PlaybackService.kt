@@ -47,6 +47,7 @@ class PlaybackService : MediaSessionService() {
                 events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
                 events.contains(Player.EVENT_POSITION_DISCONTINUITY) ||
                 events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED) ||
+                events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED) ||
                 events.contains(Player.EVENT_IS_PLAYING_CHANGED) ||
                 events.contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
                 events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)
@@ -208,7 +209,23 @@ class PlaybackService : MediaSessionService() {
 }
 
 @UnstableApi
-internal class SystemControlPlayer(player: Player) : ForwardingPlayer(player) {
+internal class SystemControlPlayer(private val player: Player) : ForwardingPlayer(player) {
+    override fun seekToNext() {
+        recoverAfterFailedItemChange { super.seekToNext() }
+    }
+
+    override fun seekToNextMediaItem() {
+        recoverAfterFailedItemChange { super.seekToNextMediaItem() }
+    }
+
+    override fun seekToPreviousMediaItem() {
+        recoverAfterFailedItemChange { super.seekToPreviousMediaItem() }
+    }
+
+    override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+        recoverAfterFailedItemChange { super.seekTo(mediaItemIndex, positionMs) }
+    }
+
     override fun seekToPrevious() {
         when (
             systemPreviousAction(
@@ -221,7 +238,29 @@ internal class SystemControlPlayer(player: Player) : ForwardingPlayer(player) {
             PreviousAction.NO_OP -> Unit
         }
     }
+
+    private inline fun recoverAfterFailedItemChange(action: () -> Unit) {
+        val failedIndex = currentMediaItemIndex
+        val hadPlaybackError = playerError != null
+        action()
+        if (
+            shouldPrepareAfterFailedItemChange(
+                hadPlaybackError = hadPlaybackError,
+                failedIndex = failedIndex,
+                currentIndex = currentMediaItemIndex,
+            )
+        ) {
+            prepare()
+            play()
+        }
+    }
 }
+
+internal fun shouldPrepareAfterFailedItemChange(
+    hadPlaybackError: Boolean,
+    failedIndex: Int,
+    currentIndex: Int,
+): Boolean = hadPlaybackError && currentIndex >= 0 && currentIndex != failedIndex
 
 internal fun systemPreviousAction(
     currentPositionMs: Long,

@@ -1,6 +1,7 @@
 package com.libreplayer.media.service
 
 import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -52,5 +53,41 @@ class SystemControlPlayerTest {
 
         verify(exactly = 0) { player.seekTo(any<Long>()) }
         verify(exactly = 0) { player.seekToPreviousMediaItem() }
+    }
+
+    @Test
+    fun `next after a fatal item prepares and plays a different occurrence`() {
+        every { player.playerError } returns mockk<PlaybackException>(relaxed = true)
+        every { player.currentMediaItemIndex } returnsMany listOf(1, 2)
+
+        systemPlayer.seekToNextMediaItem()
+
+        verify(exactly = 1) { player.seekToNextMediaItem() }
+        verify(exactly = 1) { player.prepare() }
+        verify(exactly = 1) { player.play() }
+    }
+
+    @Test
+    fun `ordinary next does not add prepare or play`() {
+        every { player.playerError } returns null
+        every { player.currentMediaItemIndex } returnsMany listOf(1, 2)
+
+        systemPlayer.seekToNextMediaItem()
+
+        verify(exactly = 1) { player.seekToNextMediaItem() }
+        verify(exactly = 0) { player.prepare() }
+        verify(exactly = 0) { player.play() }
+    }
+
+    @Test
+    fun `failed final item does not retry when next cannot change occurrence`() {
+        every { player.playerError } returns mockk<PlaybackException>(relaxed = true)
+        every { player.currentMediaItemIndex } returns 2
+
+        systemPlayer.seekToNextMediaItem()
+
+        verify(exactly = 1) { player.seekToNextMediaItem() }
+        verify(exactly = 0) { player.prepare() }
+        verify(exactly = 0) { player.play() }
     }
 }
