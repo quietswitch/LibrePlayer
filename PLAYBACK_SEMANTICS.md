@@ -590,3 +590,77 @@ explicitly changes the contract.
 | controller reconnect while suppressed | real API 36 reconnect sequence, F8 | correct but previously untested |
 | rapid bounded loss/gain sequence | two real transient cycles, F9 | correct and covered |
 | play-intent persistence during transient/permanent loss | DataStore observation during F2/F3/F5 | correct but previously untested |
+
+## Long-session playback reliability
+
+Q2.8 adds a controlled long-session reference on the API 36
+`LibrePlayer_Benchmark_API_36` emulator. It does not add production playback
+machinery. The service still owns one `ExoPlayer`, one `MediaSession`, one
+fixed service listener, one lifecycle-bound service scope, the existing
+event-driven plus approximately five-second active-state persistence path, and
+the application-scoped controller with its replace-on-connect UI ticker. No
+listener or job is registered per transition, reconnect, or Activity
+recreation; no watchdog, player reset, queue reset, service restart, or retry
+loop was introduced.
+
+### Wall-clock authority
+
+- One 45-minute run completed in 2,700.186 seconds. The same app PID and one
+  MediaSession remained present from T+0 through T+45, the playback service
+  stayed foreground, and the final state was READY, playing, unsuppressed,
+  connected, and coherent at queue index 0.
+- The schedule included background plus a bounded two-minute screen-off
+  interval, one controller release/reconnect, one Activity recreation, one
+  seek, three unchanged library refreshes, and one stable Pause/Play cycle.
+  Screen-off establishes only **BOUNDED SCREEN-OFF PLAYBACK CONTINUITY**; it is
+  not Doze, physical battery, or OEM power-management authority.
+- The run completed 135 natural transitions with exactly 135 automatic
+  discontinuities, two explicit seek discontinuities, zero player errors, and
+  zero unexpected session disconnects. All three refreshes retained the
+  original catalog count and healthy playback.
+- PSS ranged from 150,239 to 168,298 KiB after startup, RSS declined from
+  261,880 to 213,436 KiB, and thread checkpoints ranged from 40 to 50. The
+  result is **bounded fluctuation**, not a retained-memory ratchet. The Android
+  shell could not enumerate `/proc/<pid>/fd`, so no descriptor-count claim is
+  made.
+- Persisted state existed at every checkpoint, remained 415–416 bytes, and
+  ended with coherent queue, item, index, position, and play intent. The
+  existing event-driven and approximately five-second active snapshot cadence
+  remains unchanged; the 500 ms UI ticker has no persistence write path.
+
+### Transition and lifecycle authority
+
+- The transition-count axis completed the bounded target of 200 natural
+  transitions in 400.468 seconds over five unique items. Checkpoints at 0, 50,
+  100, and 200 retained coherent wrap/index state, one player/session, zero
+  errors or disconnects, and exact automatic transition/discontinuity parity.
+- A supplementary sequence completed 12 shuffle-authoritative transitions and
+  6 repeat-all transitions. Disabling shuffle and restoring ordinary
+  repeat-all remained coherent; the final total was 218/218 automatic events.
+- Control/lifecycle churn completed 10 Pause/Play cycles, 10 seeks, 12 Next,
+  6 Previous, 10 controller reconnects, 5 rotations, 5 background/foreground
+  cycles, and 5 unchanged refreshes. It ended READY and playing with exactly
+  one session, no controller accumulation, no stale exception, and no stuck
+  suppression.
+- One late missing-source case retained the Q2.7 user-directed policy: error
+  2005 was observed, one system Next recovered, and three later natural
+  transitions completed with no stale error contamination. The complete Q2.7
+  E1–E14 matrix was not rerun.
+
+### Supporting authority and limits
+
+One targeted Q1.1f unchanged refresh against the canonical 2,000-track MEDIUM
+catalog retained the exact identity fingerprint, advanced the same known item
+by 1,994 ms in a 2.002-second observation, and produced zero transition,
+discontinuity, disconnect, or error events. A separate Q1.1g rerun was not
+needed: production lifecycle/resource code did not change, Q1.1g remains the
+controlled short-session authority, and Q2.8 supplies playback-specific
+long-session evidence. Process-death restoration remains bounded by accepted
+Q2.1/Q2.2 authority. Baseline Profiles were not regenerated because Q2.8 adds
+no production path.
+
+This reference does not establish multi-day endurance, universal OEM behavior,
+physical thermal/battery behavior, Bluetooth endurance, Android Auto behavior,
+or a universal memory threshold. Exact checkpoints, fixture hashes, recovery
+history, and the invalid benchmark-only post-wake race are retained in
+`performance-baselines/q2.8-long-session.json`.

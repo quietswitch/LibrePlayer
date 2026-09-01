@@ -30,7 +30,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
-/** Debug-only Q2.7 real-source fixture, observation, and command authority. */
+/** Debug-only Q2.7/Q2.8 real-source fixture, observation, and command authority. */
 @UnstableApi
 class AdversarialMediaProbeProvider : ContentProvider() {
     private var observer: MediaController? = null
@@ -57,7 +57,23 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            events.transitions += "${mediaItem?.mediaId}:${observer?.currentMediaItemIndex}:$reason"
+            events.transitions += TransitionEvent(
+                mediaId = mediaItem?.mediaId,
+                index = observer?.currentMediaItemIndex ?: -1,
+                reason = reason,
+            )
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            events.discontinuities += DiscontinuityEvent(
+                oldIndex = oldPosition.mediaItemIndex,
+                newIndex = newPosition.mediaItemIndex,
+                reason = reason,
+            )
         }
     }
 
@@ -92,12 +108,20 @@ class AdversarialMediaProbeProvider : ContentProvider() {
                 METHOD_SYSTEM_NEXT -> controllerCommand(application) { seekToNext() }
                 METHOD_SYSTEM_PREVIOUS -> controllerCommand(application) { seekToPrevious() }
                 METHOD_SYSTEM_PLAY -> controllerCommand(application) { play() }
+                METHOD_SYSTEM_PAUSE -> controllerCommand(application) { pause() }
                 METHOD_SEEK -> controllerCommand(application) { seekTo(requireNotNull(arg).toLong()) }
+                METHOD_REPEAT -> controllerCommand(application) { repeatMode = requireNotNull(arg).toInt() }
+                METHOD_SHUFFLE -> controllerCommand(application) {
+                    shuffleModeEnabled = requireNotNull(arg).toBooleanStrict()
+                }
+                METHOD_REFRESH -> refreshLibrary(application)
                 METHOD_DELETE -> deleteFixture(requireNotNull(arg))
                 METHOD_PERSISTED -> persistedBundle(application)
+                METHOD_PERSISTENCE_FILE -> persistenceFileBundle()
                 METHOD_LIBRARY_SUMMARY -> librarySummary(application)
                 METHOD_RELEASE_CONTROLLER -> releaseObserver()
                 METHOD_RECONNECT -> snapshotBundle(application, connectedObserver())
+                METHOD_RESET_EVENTS -> resetEvents(application)
                 METHOD_RESET -> resetPlayback()
                 else -> error("Unsupported adversarial-media probe method: $method")
             }
@@ -116,7 +140,7 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         events.reset()
         val definition = scenarioDefinition(scenario, fixtures)
         withContext(Dispatchers.Main.immediate) {
-            controller.repeatMode = Player.REPEAT_MODE_OFF
+            controller.repeatMode = definition.repeatMode
             controller.shuffleModeEnabled = false
             application.appContainer.playbackConnection.playQueue(
                 queue = definition.queue,
@@ -165,6 +189,29 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         }
     }
 
+    private suspend fun refreshLibrary(application: LibrePlayerApplication): Bundle {
+        val startedNanos = SystemClock.elapsedRealtimeNanos()
+        application.appContainer.libraryRepository.rescanLibrary()
+        return snapshotBundle(application, connectedObserver()).apply {
+            putLong("refreshElapsedNanos", SystemClock.elapsedRealtimeNanos() - startedNanos)
+        }
+    }
+
+    private fun persistenceFileBundle(): Bundle {
+        val file = File(requireNotNull(context).filesDir, "datastore/libreplayer_preferences.preferences_pb")
+        return Bundle().apply {
+            putBoolean(KEY_PASSED, true)
+            putBoolean("exists", file.exists())
+            putLong("length", if (file.exists()) file.length() else 0L)
+            putLong("lastModifiedMs", if (file.exists()) file.lastModified() else 0L)
+        }
+    }
+
+    private suspend fun resetEvents(application: LibrePlayerApplication): Bundle {
+        events.reset()
+        return snapshotBundle(application, connectedObserver())
+    }
+
     private suspend fun librarySummary(application: LibrePlayerApplication): Bundle =
         Bundle().apply {
             putBoolean(KEY_PASSED, true)
@@ -186,6 +233,7 @@ class AdversarialMediaProbeProvider : ContentProvider() {
 
     private suspend fun releaseObserver(): Bundle {
         deliberateControllerRelease = true
+        events.deliberateControllerReleases.incrementAndGet()
         withContext(Dispatchers.Main.immediate) {
             observer?.removeListener(playerListener)
             observer?.release()
@@ -225,6 +273,7 @@ class AdversarialMediaProbeProvider : ContentProvider() {
             withContext(Dispatchers.Main.immediate) { controller.addListener(playerListener) }
             observer = controller
             events.disconnected.set(false)
+            events.controllerConnections.incrementAndGet()
         }
         if (!initialConnectionSettled) {
             delay(SERVICE_RESTORE_SETTLE_MS)
@@ -332,6 +381,10 @@ class AdversarialMediaProbeProvider : ContentProvider() {
             listOf(fixtures.missing, fixtures.goodA, fixtures.goodC),
             0,
         )
+        SCENARIO_Q28_WALL -> Scenario(fixtures.wallQueue(), 0, Player.REPEAT_MODE_ALL)
+        SCENARIO_Q28_TRANSITION -> Scenario(fixtures.transitionQueue(), 0, Player.REPEAT_MODE_ALL)
+        SCENARIO_Q28_CHURN -> Scenario(fixtures.churnQueue(), 0, Player.REPEAT_MODE_ALL)
+        SCENARIO_Q28_LATE_ERROR -> Scenario(fixtures.lateErrorQueue(), 0)
         else -> error("Unknown adversarial scenario: $scenario")
     }
 
@@ -353,7 +406,11 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
     ): Int = 0
 
-    private data class Scenario(val queue: List<Song>, val startIndex: Int)
+    private data class Scenario(
+        val queue: List<Song>,
+        val startIndex: Int,
+        val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    )
 
     private inner class Fixtures(private val directory: File) {
         val goodA = song(GOOD_A_ID, GOOD_A_FILE, "Q2.7 good A", 2_000L, "audio/flac")
@@ -364,6 +421,40 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         val garbage = song(GARBAGE_ID, GARBAGE_FILE, "Q2.7 garbage", 0L, "audio/mpeg")
         val truncated = song(TRUNCATED_ID, TRUNCATED_FILE, "Q2.7 truncated FLAC", 20_000L, "audio/flac")
         val deletable = song(DELETABLE_ID, DELETABLE_FILE, "Q2.7 deletable", 20_000L, "audio/flac")
+
+        fun wallQueue(): List<Song> = List(3) { index ->
+            goodLong.copy(
+                id = "q2.8:wall:$index",
+                title = "Q2.8 wall ${index + 1}",
+                displayName = "q2.8-wall-${index + 1}.flac",
+            )
+        }
+
+        fun transitionQueue(): List<Song> = List(5) { index ->
+            (if (index % 2 == 0) goodA else goodC).copy(
+                id = "q2.8:transition:$index",
+                title = "Q2.8 transition ${index + 1}",
+                displayName = "q2.8-transition-${index + 1}.flac",
+            )
+        }
+
+        fun churnQueue(): List<Song> = List(4) { index ->
+            goodLong.copy(
+                id = "q2.8:churn:$index",
+                title = "Q2.8 churn ${index + 1}",
+                displayName = "q2.8-churn-${index + 1}.flac",
+            )
+        }
+
+        fun lateErrorQueue(): List<Song> = listOf(
+            missing.copy(id = "q2.8:late:missing", title = "Q2.8 late missing"),
+        ) + List(4) { index ->
+            (if (index % 2 == 0) goodA else goodC).copy(
+                id = "q2.8:late:valid:$index",
+                title = "Q2.8 late valid ${index + 1}",
+                displayName = "q2.8-late-valid-${index + 1}.flac",
+            )
+        }
 
         fun manifestLines(): List<String> = fixtureNames.map { name ->
             val file = File(directory, name)
@@ -432,7 +523,32 @@ class AdversarialMediaProbeProvider : ContentProvider() {
             putString("failureEvents", events.failures.joinToString("|"))
             putInt("transitionCount", events.transitions.size)
             putString("transitionEvents", events.transitions.joinToString("|"))
+            putInt(
+                "automaticTransitionCount",
+                events.transitions.count { it.reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO },
+            )
+            putInt(
+                "repeatTransitionCount",
+                events.transitions.count { it.reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT },
+            )
+            putInt(
+                "seekTransitionCount",
+                events.transitions.count { it.reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK },
+            )
+            putInt("discontinuityCount", events.discontinuities.size)
+            putInt(
+                "automaticDiscontinuityCount",
+                events.discontinuities.count { it.reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION },
+            )
+            putInt(
+                "seekDiscontinuityCount",
+                events.discontinuities.count { it.reason == Player.DISCONTINUITY_REASON_SEEK },
+            )
             putInt("sessionDisconnects", events.sessionDisconnects.get())
+            putInt("controllerConnections", events.controllerConnections.get())
+            putInt("deliberateControllerReleases", events.deliberateControllerReleases.get())
+            putInt("repeatMode", uiState.repeatMode)
+            putBoolean("shuffleEnabled", uiState.shuffleEnabled)
             putString("uiMediaId", uiState.currentSong?.id)
             putInt("uiCurrentIndex", uiState.currentIndex)
             putLong("uiPositionMs", uiState.positionMs)
@@ -457,16 +573,34 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         val suppressionReason: Int,
     )
 
+    private data class TransitionEvent(
+        val mediaId: String?,
+        val index: Int,
+        val reason: Int,
+    )
+
+    private data class DiscontinuityEvent(
+        val oldIndex: Int,
+        val newIndex: Int,
+        val reason: Int,
+    )
+
     private class FailureEvents {
         val failures = CopyOnWriteArrayList<FailureEvent>()
-        val transitions = CopyOnWriteArrayList<String>()
+        val transitions = CopyOnWriteArrayList<TransitionEvent>()
+        val discontinuities = CopyOnWriteArrayList<DiscontinuityEvent>()
         val sessionDisconnects = AtomicInteger()
+        val controllerConnections = AtomicInteger()
+        val deliberateControllerReleases = AtomicInteger()
         val disconnected = AtomicBoolean()
 
         fun reset() {
             failures.clear()
             transitions.clear()
+            discontinuities.clear()
             sessionDisconnects.set(0)
+            controllerConnections.set(0)
+            deliberateControllerReleases.set(0)
             disconnected.set(false)
         }
     }
@@ -483,12 +617,18 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         const val METHOD_SYSTEM_NEXT = "system-next"
         const val METHOD_SYSTEM_PREVIOUS = "system-previous"
         const val METHOD_SYSTEM_PLAY = "system-play"
+        const val METHOD_SYSTEM_PAUSE = "system-pause"
         const val METHOD_SEEK = "seek"
+        const val METHOD_REPEAT = "repeat"
+        const val METHOD_SHUFFLE = "shuffle"
+        const val METHOD_REFRESH = "refresh"
         const val METHOD_DELETE = "delete"
         const val METHOD_PERSISTED = "persisted"
+        const val METHOD_PERSISTENCE_FILE = "persistence-file"
         const val METHOD_LIBRARY_SUMMARY = "library-summary"
         const val METHOD_RELEASE_CONTROLLER = "release-controller"
         const val METHOD_RECONNECT = "reconnect"
+        const val METHOD_RESET_EVENTS = "reset-events"
         const val METHOD_RESET = "reset"
         const val KEY_PASSED = "passed"
         const val NO_ERROR_CODE = Int.MIN_VALUE
@@ -504,6 +644,10 @@ class AdversarialMediaProbeProvider : ContentProvider() {
         const val SCENARIO_DELETE_CURRENT = "delete-current"
         const val SCENARIO_LONG_RECOVERY = "long-recovery"
         const val SCENARIO_RECOVERY_TRANSITION = "recovery-transition"
+        const val SCENARIO_Q28_WALL = "q2.8-wall"
+        const val SCENARIO_Q28_TRANSITION = "q2.8-transition"
+        const val SCENARIO_Q28_CHURN = "q2.8-churn"
+        const val SCENARIO_Q28_LATE_ERROR = "q2.8-late-error"
         const val GOOD_A_ID = "q2.7:good:a"
         const val GOOD_C_ID = "q2.7:good:c"
         const val GOOD_LONG_ID = "q2.7:good:long"

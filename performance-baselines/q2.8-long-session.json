@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED LONG-SESSION PLAYBACK REFERENCE — NOT A UNIVERSAL DEVICE ENDURANCE REQUIREMENT",
+  "tested_commit": "ef95279d62904dbbfed65ba0fa00e73c08895710",
+  "tested_commit_subject": "Establish Q2.7 adversarial media recovery semantics",
+  "branch": "master",
+  "environment": {
+    "avd": "LibrePlayer_Benchmark_API_36",
+    "serial": "emulator-5554",
+    "android_api": 36,
+    "abi": "x86_64",
+    "qemu": true,
+    "snapshot_policy": "no snapshot",
+    "physical_device_used": false
+  },
+  "recovery_history": {
+    "pre_resume_launch": {
+      "result": "externally terminated before meaningful authority completion when the prior host session ended",
+      "product_failure": false,
+      "evidence_use": "none"
+    },
+    "invalid_wall_attempt": {
+      "result": "invalid benchmark-only post-wake assertion race",
+      "junit_elapsed_seconds": 1169.823,
+      "product_snapshot": {
+        "playback_state": "READY",
+        "is_playing": true,
+        "automatic_transitions": 31,
+        "automatic_discontinuities": 31,
+        "player_errors": 0,
+        "unexpected_session_disconnects": 0
+      },
+      "classification": "harness failure; not a LibrePlayer failure",
+      "instrumentation_sha256": "DBCB90646A5D15A914D2747E4CDB1B0F326CACC5F8116B372DB2583E4E46CE2A",
+      "logcat_sha256": "1D7C0A6D4961B235BF0238A354437955ADAB9D06293248EFF11DB3AE9B640893"
+    },
+    "corrected_wall_attempt": {
+      "authorization": "one explicit additional harness-corrected authority run",
+      "result": "passed",
+      "repeated_after_result": false
+    }
+  },
+  "test_infrastructure": {
+    "debug_probe": "app/src/debug/java/com/libreplayer/debug/AdversarialMediaProbeProvider.kt",
+    "debug_probe_sha256": "AF1F9EFC9E39DF39855F60F7D7287942070F506B98FE8A0C62FA5F93D641D73D",
+    "runner": "benchmark/src/main/java/com/libreplayer/benchmark/LongSessionPlaybackIntegrationTest.kt",
+    "runner_sha256": "166C3CFC272226EE0D8059571C69613F6A3B354D5A9C1D6FD300AA39778E88E7",
+    "production_files_changed": 0,
+    "production_runtime_dependencies_changed": false
+  },
+  "fixtures": {
+    "wall_queue": [
+      "q2.8:wall:0",
+      "q2.8:wall:1",
+      "q2.8:wall:2"
+    ],
+    "transition_queue_size": 5,
+    "churn_queue_size": 4,
+    "q2_7_manifest": [
+      "good-a.flac:34617:99ba43f6984bb05a8753f0edf3df44f2f10a371f0d2f4a161a7401c1e1b91122",
+      "good-c.flac:34617:99ba43f6984bb05a8753f0edf3df44f2f10a371f0d2f4a161a7401c1e1b91122",
+      "good-long.flac:272022:92cf7501065e8c0c0582f5e157940fb240b9bf0aeed6eeca06520fc592ae94f4",
+      "missing.flac:missing:-",
+      "zero.flac:0:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "garbage.mp3:3072:33986ba530755f39dbc3d5f8a412108357bc4e05f8dee94edbc0cb4091e1472d",
+      "truncated.flac:8192:6c5886891619a5805992ceeb1ef580608cbabbd4af3c571c4d32aef3cf729260",
+      "deletable.flac:272022:92cf7501065e8c0c0582f5e157940fb240b9bf0aeed6eeca06520fc592ae94f4"
+    ]
+  },
+  "architecture_audit": {
+    "playback_services": 1,
+    "exoplayers": 1,
+    "media_sessions": 1,
+    "service_player_listener_lifetime": "one fixed listener for service lifetime",
+    "service_coroutine_scope": "one SupervisorJob-backed scope cancelled in onDestroy",
+    "controller": "one application-scoped PlaybackConnection with replace-on-connect UI ticker",
+    "persistence": "event-driven state plus approximately five-second active playback snapshots",
+    "listener_or_job_per_transition": false,
+    "watchdog_or_periodic_player_reset": false,
+    "accumulation_risk_result": "no production accumulation path identified"
+  },
+  "wall_clock_authority": {
+    "result": "PASS",
+    "requested_duration_ms": 2700000,
+    "actual_duration_ms": 2700186,
+    "junit_elapsed_seconds": 2705.299,
+    "start_utc": "2026-09-01T21:44:47.134Z",
+    "end_utc": "2026-09-01T22:29:47.330Z",
+    "start_local": "2026-09-01T15:44:47.134-06:00",
+    "end_local": "2026-09-01T16:29:47.330-06:00",
+    "pid": 3518,
+    "pid_continuous": true,
+    "media_session_count": 1,
+    "media_session_continuous": true,
+    "foreground_service_continuous": true,
+    "player_errors": 0,
+    "unexpected_session_disconnects": 0,
+    "automatic_transitions": 135,
+    "automatic_discontinuities": 135,
+    "explicit_seek_discontinuities": 2,
+    "scheduled_actions": {
+      "background_and_screen_off": 1,
+      "screen_off_duration_minutes": 2,
+      "controller_release_reconnect": 1,
+      "activity_recreation": 1,
+      "seek": 1,
+      "unchanged_refreshes": 3,
+      "pause_resume": 1,
+      "focus_or_noisy_action": "not included; Q2.4/Q2.6 remain the focused authorities"
+    },
+    "screen_off_result": "BOUNDED SCREEN-OFF PLAYBACK CONTINUITY",
+    "final_state": {
+      "media_id": "q2.8:wall:0",
+      "current_index": 0,
+      "queue_size": 3,
+      "position_ms": 4677,
+      "playback_state": "READY",
+      "play_when_ready": true,
+      "is_playing": true,
+      "suppression_reason": "NONE",
+      "connected": true
+    },
+    "resource_trajectory": "bounded fluctuation",
+    "resource_checkpoints": [
+      {"label": "T+0", "elapsed_ms": 271, "pss_kb": 166621, "rss_kb": 261880, "threads": 50, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+5", "elapsed_ms": 300211, "pss_kb": 159720, "rss_kb": 257652, "threads": 46, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+12-screen-off", "elapsed_ms": 720801, "pss_kb": 152519, "rss_kb": 246028, "threads": 40, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+15-reconnect", "elapsed_ms": 900142, "pss_kb": 150239, "rss_kb": 244516, "threads": 40, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+20-recreate", "elapsed_ms": 1204670, "pss_kb": 168298, "rss_kb": 252732, "threads": 50, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+25-seek", "elapsed_ms": 1500341, "pss_kb": 161942, "rss_kb": 239220, "threads": 46, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+35-refreshes", "elapsed_ms": 2100145, "pss_kb": 159758, "rss_kb": 217160, "threads": 46, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+40-pause-resume", "elapsed_ms": 2402590, "pss_kb": 160190, "rss_kb": 216752, "threads": 46, "file_descriptors": null, "media_sessions": 1},
+      {"label": "T+45-final", "elapsed_ms": 2700184, "pss_kb": 161490, "rss_kb": 213436, "threads": 45, "file_descriptors": null, "media_sessions": 1}
+    ],
+    "resource_observation_limit": "Android shell could not enumerate /proc/<pid>/fd; descriptor count is unavailable rather than inferred",
+    "persistence": {
+      "result": "coherent",
+      "file_present_at_every_checkpoint": true,
+      "file_length_bytes_range": [415, 416],
+      "final_queue_item_index_play_intent_coherent": true,
+      "write_cadence": "existing event-driven writes and approximately five-second active snapshots; no 500 ms UI-tick write path",
+      "cadence_changed": false
+    },
+    "instrumentation_sha256": "8D92DA5F5AE29D4839565A34D5C3CFC2CA6464AF5CA3370420137565B0228543",
+    "logcat_sha256": "AA5036C9A0E9C4345B0774FA995567618362669AC9250A335192EA36C1163C3A"
+  },
+  "transition_count_authority": {
+    "result": "PASS",
+    "target_natural_transitions": 200,
+    "completed_natural_transitions": 200,
+    "natural_soak_duration_ms": 400468,
+    "checkpoint_results": [
+      {"transitions": 0, "index": 0, "pss_kb": 169654, "rss_kb": 204080, "threads": 67},
+      {"transitions": 50, "index": 0, "pss_kb": 168799, "rss_kb": 196340, "threads": 47},
+      {"transitions": 100, "index": 0, "pss_kb": 162336, "rss_kb": 193992, "threads": 48},
+      {"transitions": 200, "index": 0, "pss_kb": 168325, "rss_kb": 195888, "threads": 51}
+    ],
+    "automatic_transition_discontinuity_parity": true,
+    "unexpected_state_ended_between_playable_items": 0,
+    "player_errors": 0,
+    "unexpected_session_disconnects": 0,
+    "queue_and_index_coherent": true,
+    "supplementary": {
+      "shuffle_transitions": 12,
+      "repeat_all_transitions": 6,
+      "final_automatic_transitions": 218,
+      "final_automatic_discontinuities": 218,
+      "shuffle_disabled_coherently": true,
+      "normal_repeat_all_restored": true
+    }
+  },
+  "control_lifecycle_churn": {
+    "result": "PASS",
+    "duration_ms": 34673,
+    "pause_resume_cycles": 10,
+    "seek_cycles": 10,
+    "next_cycles": 12,
+    "previous_cycles": 6,
+    "controller_reconnect_cycles": 10,
+    "activity_rotation_cycles": 5,
+    "background_foreground_cycles": 5,
+    "unchanged_refresh_cycles": 5,
+    "controller_connections": 10,
+    "deliberate_controller_releases": 10,
+    "player_errors": 0,
+    "unexpected_session_disconnects": 0,
+    "final_state": "READY, playing, connected, coherent queue item/index",
+    "final_pss_kb": 166086,
+    "final_rss_kb": 190884,
+    "final_threads": 54,
+    "media_sessions": 1
+  },
+  "late_session_q2_7_recovery": {
+    "result": "PASS",
+    "failed_item": "q2.8:late:missing",
+    "expected_error_code": 2005,
+    "ordinary_recovery_action": "one system Next",
+    "post_recovery_healthy_transitions": 3,
+    "duration_ms": 6351,
+    "final_media_id": "q2.8:late:valid:3",
+    "final_index": 4,
+    "final_state": "READY, playing, connected, no stale player error",
+    "unexpected_session_disconnects": 0
+  },
+  "targeted_q1_1f": {
+    "result": "PASS",
+    "scope": "one ordinary unchanged-refresh playback sanity",
+    "catalog_count": 2000,
+    "catalog_unique_identities": 2000,
+    "catalog_duplicate_identities": 0,
+    "catalog_identity_sha256": "48fef38b09d0c44b6b758ada098d9afc5ae87389cc4ec5cb849d4866e0fe1c07",
+    "dataset_fingerprint_sha256": "c573e8d0296a41c322b2ed17e7125e2146d0265836f78d42336dba3359040f9f",
+    "fixture_identity": "audio/artist-00010/album-00010/disc-01/track-00010.mp3",
+    "fixture_sha256": "e36b35ecf92aad64312fd4f3507a1fd2d72ac36f0190c50887c7b30c6d0dbb85",
+    "synchronization_elapsed_ms": 57.6828,
+    "observation_elapsed_ms": 2002.1718,
+    "position_advancement_ms": 1994,
+    "player_errors": 0,
+    "media_transitions": 0,
+    "position_discontinuities": 0,
+    "session_disconnects": 0
+  },
+  "targeted_q1_1g": {
+    "performed": false,
+    "reason": "production resource/lifecycle code is unchanged; Q1.1g remains the controlled short-session authority and Q2.8 adds stronger playback-specific long-session evidence"
+  },
+  "process_death": {
+    "performed": false,
+    "reason": "bounded by the previously accepted Q2.1/Q2.2 restoration authority"
+  },
+  "baseline_profile": {
+    "regenerated": false,
+    "baseline_prof_sha256": "72473B10AD3F9F2F5610D480DB98E7BDF4AB125069F62876677A1FF2BA29A23D",
+    "startup_prof_sha256": "A751050D1C54A65A99C1EDEE071DBA66A1403314C0F6795984B64279852167B3",
+    "next_action": "Q2.4/Q2.5 accumulated playback changes remain queued for the next normal release-cycle profile reassessment; Q2.8 adds no production path"
+  },
+  "verification": {
+    "testDebugUnitTest": "PASS",
+    "lintDebug": "PASS",
+    "assembleDebug": "PASS",
+    "assembleRelease": "PASS",
+    "benchmark_assembleDebug": "PASS",
+    "benchmark_assembleBenchmark": "PASS",
+    "git_diff_check": "PASS",
+    "release": {
+      "file": "app/build/outputs/apk/release/app-release-unsigned.apk",
+      "sha256": "86E1C861D8B0169B13817F9F79D0BF21B3FE6ABA27A6E2DC41F6CD70828B7985",
+      "size_bytes": 19883057,
+      "version_name": "1.0.4",
+      "version_code": 5,
+      "unsigned": true,
+      "debuggable": false,
+      "profileable": false,
+      "internet_permission": false,
+      "access_network_state_permission": false,
+      "q2_8_test_leak_matches": 0,
+      "baseline_prof_packaged": true,
+      "baseline_profm_packaged": true
+    }
+  },
+  "defects": {
+    "production": [],
+    "test_harness": [
+      "post-wake continuation originally compared non-atomic pre-sleep probe fields; corrected to require a unique-media change or at least 500 ms advancement from a fresh post-wake baseline"
+    ]
+  },
+  "evidence_artifacts": {
+    "wall_instrumentation": "performance-results/q2.8-long-session-20260901/wall-authority-corrected1-instrumentation.txt",
+    "wall_logcat": "performance-results/q2.8-long-session-20260901/wall-authority-corrected1-logcat.txt",
+    "transition_instrumentation": "performance-results/q2.8-long-session-20260901/transition-churn-authority1-instrumentation.txt",
+    "transition_logcat": "performance-results/q2.8-long-session-20260901/transition-churn-authority1-logcat.txt",
+    "transition_instrumentation_sha256": "935D403E34A5C66BBD0D3D25422F5926BDA03DB52359B21EE9FC477BFEEF5743",
+    "transition_logcat_sha256": "90A586D735F673377086015F6C77AE376BD3915C84051B5045FC2F70D2B7F729"
+  },
+  "authority_limits": [
+    "no multi-day endurance claim",
+    "no universal OEM authority",
+    "no physical thermal or battery authority",
+    "no Bluetooth endurance authority",
+    "no Android Auto authority",
+    "no universal memory threshold",
+    "bounded screen-off playback continuity only",
+    "file-descriptor count unavailable to the Android shell"
+  ],
+  "decision": "Q2.8 Long-Session Playback Reliability accepted and ready for Q2.9 Playback Mastery Close"
+}
