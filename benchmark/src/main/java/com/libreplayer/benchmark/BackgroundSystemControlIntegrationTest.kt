@@ -23,6 +23,80 @@ class BackgroundSystemControlIntegrationTest {
     private val device = UiDevice.getInstance(instrumentation)
 
     @Test
+    fun systemPreviousExactThresholdAuthority() {
+        try {
+            bringTargetForeground()
+
+            call("prepare-long")
+            val exactPaused = call("external-pause").asSnapshot()
+            check(!exactPaused.playWhenReady && !exactPaused.isPlaying)
+            val exactPosition = awaitAfterCommand(
+                "external-seek",
+                "5000",
+                "exact-threshold seek",
+            ) {
+                it.mediaId == LONG_TWO &&
+                    it.currentIndex == 1 &&
+                    it.positionMs == 5_000L &&
+                    !it.playWhenReady &&
+                    !it.isPlaying
+            }
+            check(exactPosition.positionMs == 5_000L)
+            val exactPrevious = awaitAfterCommand(
+                "external-previous",
+                "exact-threshold system Previous",
+            ) {
+                it.mediaId == LONG_ONE &&
+                    it.currentIndex == 0 &&
+                    it.positionMs < ITEM_START_TOLERANCE_MS &&
+                    !it.playWhenReady &&
+                    !it.isPlaying
+            }
+            requireSingleSession(LONG_ONE)
+            check(!exactPrevious.hasPlayerError)
+            check(exactPrevious.playerErrors == 0)
+            check(exactPrevious.sessionDisconnects == 0)
+
+            call("prepare-long")
+            val abovePaused = call("external-pause").asSnapshot()
+            check(!abovePaused.playWhenReady && !abovePaused.isPlaying)
+            val abovePosition = awaitAfterCommand(
+                "external-seek",
+                "6000",
+                "above-threshold seek",
+            ) {
+                it.mediaId == LONG_TWO &&
+                    it.currentIndex == 1 &&
+                    it.positionMs == 6_000L &&
+                    !it.playWhenReady &&
+                    !it.isPlaying
+            }
+            check(abovePosition.positionMs == 6_000L)
+            val abovePrevious = awaitAfterCommand(
+                "external-previous",
+                "above-threshold system Previous",
+            ) {
+                it.mediaId == LONG_TWO &&
+                    it.currentIndex == 1 &&
+                    it.positionMs < ITEM_START_TOLERANCE_MS &&
+                    !it.playWhenReady &&
+                    !it.isPlaying
+            }
+            requireSingleSession(LONG_TWO)
+            check(!abovePrevious.hasPlayerError)
+            check(abovePrevious.playerErrors == 0)
+            check(abovePrevious.sessionDisconnects == 0)
+
+            Log.i(
+                LOG_TAG,
+                "D2 exact=${exactPrevious.summary()} above=${abovePrevious.summary()}",
+            )
+        } finally {
+            runCatching { call("reset") }
+        }
+    }
+
+    @Test
     fun backgroundSessionAndSystemControlAuthority() {
         val results = linkedMapOf<String, String>()
         try {

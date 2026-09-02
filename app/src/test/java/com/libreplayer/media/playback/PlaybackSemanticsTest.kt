@@ -76,7 +76,9 @@ class PlaybackSemanticsTest {
     }
 
     @Test
-    fun `previous at threshold selects previous item when present`() {
+    fun `previous at or below threshold selects previous item when present`() {
+        assertThat(previousAction(4_999L, hasPreviousMediaItem = true))
+            .isEqualTo(PreviousAction.SEEK_PREVIOUS)
         assertThat(previousAction(PREVIOUS_RESTART_THRESHOLD_MS, hasPreviousMediaItem = true))
             .isEqualTo(PreviousAction.SEEK_PREVIOUS)
         assertThat(previousAction(0L, hasPreviousMediaItem = true))

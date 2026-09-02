@@ -30,10 +30,11 @@ explicitly changes the contract.
   wraps only for repeat-all, and is a no-op at the final item with repeat off.
   Repeat-one affects natural completion but is deliberately ignored by manual
   next/previous, matching Media3.
-- Previous restarts the current item when position is greater than 5 seconds.
-  At or before 5 seconds it selects the Media3 previous item. If none exists,
-  it is a no-op. In shuffle mode, “previous” means the previous item in the
-  active shuffle traversal.
+- Foreground and MediaSession/system Previous use one boundary: position greater
+  than 5,000 ms restarts the current occurrence; at or below 5,000 ms it selects
+  the Media3 previous occurrence, or is a no-op at the first occurrence. In
+  shuffle mode, “previous” means the previous item in the active shuffle
+  traversal.
 - Selecting an occurrence on the Queue screen seeks within the existing player
   timeline and starts playback. It does not reconstruct the queue or shuffle
   order. Occurrences are identified by index plus media ID, so duplicate songs
@@ -296,10 +297,10 @@ explicitly changes the contract.
   restarts the final occurrence from its default position, matching Q2.3.
 - External Next follows Media3 timeline traversal, including manual traversal
   while repeat-one is selected and shuffle's authoritative next occurrence.
-  External Previous applies the Q2.5 system boundary: below five seconds it
-  selects the previous timeline item when one exists; at or above five seconds
-  it restarts the current item. The foreground control retains its accepted Q2.1
-  exact-threshold behavior.
+  External Previous uses the same accepted Q2.1 boundary as the foreground
+  control: greater than 5,000 ms restarts the current occurrence; at or below
+  5,000 ms it selects the previous timeline occurrence when one exists, or is a
+  no-op at the first occurrence.
 - External ordinary seeks remain Media3 commands against the live player. The
   player supplies duration/timeline normalization and remains the live position
   authority; Q2.5 does not add another seek state or polling path.
@@ -341,7 +342,7 @@ explicitly changes the contract.
 | Controller reconnect | B3 real external controller release/reconnect, 500 ms projection tolerance | Established |
 | System Pause/Play | B4 external `MediaController` commands | Established |
 | System Next | B5 external traversal of the Media3 timeline | Established |
-| System Previous | B6 external 4 s previous-item and 6 s restart cases; exact 5 s unit boundary | Established |
+| System Previous | B6 external previous-item and restart cases; focused 4,999/5,000/5,001 ms boundary | Established |
 | System seek | B7 one ordinary external seek against the live player | Established |
 | Background natural transition | B8 short-to-long synthetic successor plus session, notification, and reopened UI | Established |
 | Final-ended restart | B9 final `STATE_ENDED` and first external Play restart; isolated notification Play proof | Established |

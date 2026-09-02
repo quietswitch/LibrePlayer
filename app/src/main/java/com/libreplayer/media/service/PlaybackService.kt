@@ -266,7 +266,7 @@ internal fun systemPreviousAction(
     currentPositionMs: Long,
     hasPreviousMediaItem: Boolean,
 ): PreviousAction = when {
-    currentPositionMs >= PREVIOUS_RESTART_THRESHOLD_MS -> PreviousAction.RESTART_CURRENT
+    currentPositionMs > PREVIOUS_RESTART_THRESHOLD_MS -> PreviousAction.RESTART_CURRENT
     hasPreviousMediaItem -> PreviousAction.SEEK_PREVIOUS
     else -> PreviousAction.NO_OP
 }

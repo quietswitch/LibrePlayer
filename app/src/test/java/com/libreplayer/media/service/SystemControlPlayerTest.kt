@@ -13,7 +13,7 @@ class SystemControlPlayerTest {
 
     @Test
     fun `system previous below five seconds selects previous item`() {
-        every { player.currentPosition } returns 4_000L
+        every { player.currentPosition } returns 4_999L
         every { player.hasPreviousMediaItem() } returns true
 
         systemPlayer.seekToPrevious()
@@ -24,7 +24,7 @@ class SystemControlPlayerTest {
 
     @Test
     fun `system previous above five seconds restarts current item`() {
-        every { player.currentPosition } returns 6_000L
+        every { player.currentPosition } returns 5_001L
         every { player.hasPreviousMediaItem() } returns true
 
         systemPlayer.seekToPrevious()
@@ -34,14 +34,14 @@ class SystemControlPlayerTest {
     }
 
     @Test
-    fun `system previous at five seconds restarts current item`() {
+    fun `system previous at five seconds selects previous item`() {
         every { player.currentPosition } returns 5_000L
         every { player.hasPreviousMediaItem() } returns true
 
         systemPlayer.seekToPrevious()
 
-        verify(exactly = 1) { player.seekTo(0L) }
-        verify(exactly = 0) { player.seekToPreviousMediaItem() }
+        verify(exactly = 1) { player.seekToPreviousMediaItem() }
+        verify(exactly = 0) { player.seekTo(any<Long>()) }
     }
 
     @Test
