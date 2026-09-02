@@ -75,6 +75,40 @@ class SynchronizationBenchmark {
         }
     }
 
+    @Test
+    fun libraryIdentityIngestionAuthority() {
+        val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+        val probeUri = Uri.parse("content://com.libreplayer.synchronization-probe")
+        val result = requireNotNull(resolver.call(probeUri, "q3.1-sync", null, null))
+
+        val ids = requireNotNull(result.getStringArray("q31Ids")).toList()
+        val contentUris = requireNotNull(result.getStringArray("q31ContentUris")).toList()
+        val displayNames = requireNotNull(result.getStringArray("q31DisplayNames")).toList()
+        val titles = requireNotNull(result.getStringArray("q31Titles")).toList()
+        val artists = requireNotNull(result.getStringArray("q31Artists")).toList()
+        val albums = requireNotNull(result.getStringArray("q31Albums")).toList()
+        val tracks = requireNotNull(result.getIntArray("q31Tracks")).toList()
+        val discs = requireNotNull(result.getIntArray("q31Discs")).toList()
+        val years = requireNotNull(result.getIntArray("q31Years")).toList()
+        val paths = requireNotNull(result.getStringArray("q31RelativePaths")).toList()
+
+        check(result.getInt("q31Count") == 3) { "Expected three Q3.1 occurrences, got ${result.getInt("q31Count")}" }
+        check(ids.size == 3 && ids.distinct().size == 3 && ids.all { it.startsWith("media:") })
+        check(contentUris.size == 3 && contentUris.distinct().size == 3)
+        check(displayNames == listOf("Twin.mp3", "Twin.mp3", "DiscTrack.mp3"))
+        check(titles == listOf("Twin", "Twin", "Disc Track"))
+        check(artists == listOf("Identity Artist", "Identity Artist", "Track Artist"))
+        check(albums == listOf("Identity Album", "Identity Album", "Multi Album"))
+        check(tracks == listOf(1, 1, 1))
+        check(discs == listOf(1, 1, 2))
+        check(years == listOf(2024, 2024, 2023))
+        check(paths == listOf(
+            "Music/LibrePlayerQ31/CopyA/",
+            "Music/LibrePlayerQ31/CopyB/",
+            "Music/LibrePlayerQ31/Multi/",
+        ))
+    }
+
     private fun requireArgument(arguments: Bundle, name: String): String =
         requireNotNull(arguments.getString(name)) { "Missing instrumentation argument: $name" }
 

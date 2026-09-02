@@ -32,6 +32,8 @@ import com.libreplayer.data.repository.AppSettings
 import com.libreplayer.data.repository.LibrarySortOption
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.UserPlaylist
+import com.libreplayer.library.semantics.albumGroupingKey
+import com.libreplayer.library.semantics.artistGroupingKey
 import java.util.Locale
 
 @Composable
@@ -293,9 +295,13 @@ internal fun displayTitle(song: Song, settings: AppSettings): String =
 internal fun displaySubtitle(song: Song): String = "${song.resolvedArtist} - ${song.resolvedAlbum}"
 
 internal fun albumKey(song: Song): String =
-    "${song.resolvedAlbum.normalized()}|${song.resolvedArtist.normalized()}"
+    albumGroupingKey(
+        album = song.album,
+        albumArtist = null,
+        trackArtist = song.artist,
+    )
 
-internal fun artistKey(song: Song): String = song.resolvedArtist.normalized()
+internal fun artistKey(song: Song): String = artistGroupingKey(song.artist)
 
 internal fun routeAddToQueue(
     song: Song,

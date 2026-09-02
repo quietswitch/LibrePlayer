@@ -4,7 +4,13 @@ import com.libreplayer.data.database.entity.AlbumEntity
 import com.libreplayer.data.database.entity.ArtistEntity
 import com.libreplayer.data.database.entity.SongEntity
 import com.libreplayer.library.scanner.ScannedSong
-import java.util.Locale
+import com.libreplayer.library.semantics.albumGroupingArtist
+import com.libreplayer.library.semantics.albumGroupingKey
+import com.libreplayer.library.semantics.artistGroupingKey
+import com.libreplayer.library.semantics.normalizedGroupingKey
+import com.libreplayer.library.semantics.resolvedAlbumTitle
+import com.libreplayer.library.semantics.resolvedSongTitle
+import com.libreplayer.library.semantics.resolvedTrackArtist
 
 internal data class LibraryDatabaseChanges(
     val songs: List<SongEntity>,
@@ -55,13 +61,19 @@ internal fun prepareLibraryChanges(
 }
 
 internal fun buildAlbums(songs: List<SongEntity>): List<AlbumEntity> =
-    songs.groupBy { "${it.albumSortKey}|${it.artistSortKey}" }
+    songs.groupBy { song ->
+        albumGroupingKey(
+            album = song.album,
+            albumArtist = null,
+            trackArtist = song.artist,
+        )
+    }
         .map { (key, groupedSongs) ->
             val first = groupedSongs.first()
             AlbumEntity(
                 id = key,
-                title = first.album?.takeIf(String::isNotBlank) ?: "Unknown album",
-                artist = first.artist?.takeIf(String::isNotBlank),
+                title = resolvedAlbumTitle(first.album),
+                artist = albumGroupingArtist(albumArtist = null, trackArtist = first.artist),
                 songCount = groupedSongs.size,
                 totalDurationMs = groupedSongs.sumOf { it.durationMs },
                 artworkUri = groupedSongs.firstNotNullOfOrNull { it.artworkUri },
@@ -71,12 +83,12 @@ internal fun buildAlbums(songs: List<SongEntity>): List<AlbumEntity> =
         .sortedBy { it.sortKey }
 
 internal fun buildArtists(songs: List<SongEntity>): List<ArtistEntity> =
-    songs.groupBy { it.artistSortKey }
+    songs.groupBy { artistGroupingKey(it.artist) }
         .map { (key, groupedSongs) ->
             val first = groupedSongs.first()
             ArtistEntity(
                 id = key,
-                name = first.artist?.takeIf(String::isNotBlank) ?: "Unknown artist",
+                name = resolvedTrackArtist(first.artist),
                 songCount = groupedSongs.size,
                 totalDurationMs = groupedSongs.sumOf { it.durationMs },
                 artworkUri = groupedSongs.firstNotNullOfOrNull { it.artworkUri },
@@ -86,9 +98,9 @@ internal fun buildArtists(songs: List<SongEntity>): List<ArtistEntity> =
         .sortedBy { it.sortKey }
 
 internal fun ScannedSong.asEntity(isFavorite: Boolean): SongEntity {
-    val normalizedTitle = title?.takeIf { it.isNotBlank() } ?: displayName.substringBeforeLast('.')
-    val normalizedArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown artist"
-    val normalizedAlbum = album?.takeIf { it.isNotBlank() } ?: "Unknown album"
+    val normalizedTitle = resolvedSongTitle(title, displayName)
+    val normalizedArtist = resolvedTrackArtist(artist)
+    val normalizedAlbum = resolvedAlbumTitle(album)
     return SongEntity(
         id = id,
         sourceType = sourceType.name,
@@ -134,4 +146,5 @@ internal fun SongEntity.asScannedSong(): ScannedSong =
         artworkUri = artworkUri,
     )
 
-private fun String.normalizedSortKey(): String = trim().lowercase(Locale.US)
+// Retain the accepted Baseline Profile symbol while sharing Q3.1 normalization authority.
+private fun String.normalizedSortKey(): String = normalizedGroupingKey()

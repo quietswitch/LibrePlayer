@@ -2,6 +2,9 @@ package com.libreplayer.data.repository
 
 import android.net.Uri
 import androidx.media3.common.Player
+import com.libreplayer.library.semantics.resolvedAlbumTitle
+import com.libreplayer.library.semantics.resolvedSongTitle
+import com.libreplayer.library.semantics.resolvedTrackArtist
 import java.time.Instant
 
 enum class SongSourceType {
@@ -48,13 +51,13 @@ data class Song(
     val isFavorite: Boolean,
 ) {
     val resolvedTitle: String
-        get() = title?.takeIf { it.isNotBlank() } ?: displayName.substringBeforeLast('.')
+        get() = resolvedSongTitle(title, displayName)
 
     val resolvedArtist: String
-        get() = artist?.takeIf { it.isNotBlank() } ?: "Unknown artist"
+        get() = resolvedTrackArtist(artist)
 
     val resolvedAlbum: String
-        get() = album?.takeIf { it.isNotBlank() } ?: "Unknown album"
+        get() = resolvedAlbumTitle(album)
 
     val content: Uri
         get() = Uri.parse(contentUri)

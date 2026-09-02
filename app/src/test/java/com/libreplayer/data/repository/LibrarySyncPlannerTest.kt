@@ -134,6 +134,49 @@ class LibrarySyncPlannerTest {
         assertThat(incremental.artists).containsExactlyElementsIn(full.artists)
     }
 
+    @Test
+    fun `same album title by unrelated artists remains separate albums`() {
+        val albums = buildAlbums(
+            listOf(
+                scannedSong("media:1", album = "Shared", artist = "Artist A").asEntity(false),
+                scannedSong("media:2", album = "Shared", artist = "Artist B").asEntity(false),
+            ),
+        )
+
+        assertThat(albums.map(AlbumEntity::id))
+            .containsExactly("shared|artist a", "shared|artist b")
+    }
+
+    @Test
+    fun `literal compilation artist and multiple discs form one album`() {
+        val songs = listOf(
+            scannedSong("media:1", album = "Compilation", artist = "Various Artists", discNumber = 1),
+            scannedSong("media:2", album = "Compilation", artist = "Various Artists", discNumber = 1),
+            scannedSong("media:3", album = "Compilation", artist = "Various Artists", discNumber = 2),
+            scannedSong("media:4", album = "Compilation", artist = "Various Artists", discNumber = 2),
+        ).map { it.asEntity(false) }
+
+        assertThat(buildAlbums(songs).single().songCount).isEqualTo(4)
+    }
+
+    @Test
+    fun `distinct song IDs survive identical metadata and presentation fallbacks stay derived`() {
+        val first = scannedSong("media:1", title = null, album = null, artist = null)
+        val second = first.copy(id = "media:2", contentUri = "content://audio/media:2")
+        val changes = prepareLibraryChanges(
+            scannedSongs = listOf(first, second),
+            currentSongs = emptyList(),
+            currentAlbums = emptyList(),
+            currentArtists = emptyList(),
+        )
+
+        assertThat(changes.songs.map(SongEntity::id)).containsExactly("media:1", "media:2")
+        assertThat(changes.songs.all { it.title == null && it.artist == null && it.album == null }).isTrue()
+        assertThat(changes.songs.first().titleSortKey).isEqualTo("media:1")
+        assertThat(changes.songs.first().artistSortKey).isEqualTo("unknown artist")
+        assertThat(changes.songs.first().albumSortKey).isEqualTo("unknown album")
+    }
+
     private fun plan(
         scanned: List<ScannedSong>,
         currentSongs: List<SongEntity>,
@@ -148,9 +191,10 @@ class LibrarySyncPlannerTest {
 
 private fun scannedSong(
     id: String,
-    title: String = id,
-    album: String = "Album",
-    artist: String = "Artist",
+    title: String? = id,
+    album: String? = "Album",
+    artist: String? = "Artist",
+    discNumber: Int? = 1,
 ) = ScannedSong(
     id = id,
     sourceType = SongSourceType.MEDIA_STORE,
@@ -160,7 +204,7 @@ private fun scannedSong(
     album = album,
     durationMs = 60_000L,
     trackNumber = 1,
-    discNumber = 1,
+    discNumber = discNumber,
     year = 2026,
     dateAddedEpochSeconds = 1L,
     dateModifiedEpochSeconds = 1L,

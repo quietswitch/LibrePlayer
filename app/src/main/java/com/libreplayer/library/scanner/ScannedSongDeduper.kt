@@ -11,7 +11,6 @@ internal object ScannedSongDeduper {
         val deduped = LinkedHashMap<String, ScannedSong>()
         songs.forEach { song ->
             val dedupeKey = canonicalPathKey(song)
-                ?: conservativeMetadataKey(song)
                 ?: "id:${song.id}"
             val existing = deduped[dedupeKey]
             deduped[dedupeKey] = if (existing == null) song else mergeDuplicate(existing, song)
@@ -140,22 +139,18 @@ internal object ScannedSongDeduper {
         if (path.contains(':') && !path.startsWith("content://")) {
             val volumePrefix = path.substringBefore(':')
             if (!volumePrefix.contains('/')) {
-                path = path.substringAfter(':')
+                val volumePath = path.substringAfter(':')
+                path = if (volumePrefix.equals("primary", ignoreCase = true)) {
+                    volumePath
+                } else {
+                    "$volumePrefix/$volumePath"
+                }
             }
         }
 
         return path.trim('/')
             .lowercase(Locale.US)
             .takeIf { it.isNotBlank() && !it.startsWith("content://") }
-    }
-
-    private fun conservativeMetadataKey(song: ScannedSong): String? {
-        val displayName = song.displayName.normalizedValue() ?: return null
-        val artist = song.artist.normalizedValue() ?: return null
-        val durationBucket = song.durationMs.takeIf { it > 0L }?.let { (it + 500L) / 1000L } ?: return null
-        val title = song.title.normalizedValue() ?: displayName.substringBeforeLast('.')
-        val album = song.album.normalizedValue().orEmpty()
-        return "meta:$displayName|$title|$artist|$album|$durationBucket"
     }
 
     private fun metadataScore(song: ScannedSong): Int =

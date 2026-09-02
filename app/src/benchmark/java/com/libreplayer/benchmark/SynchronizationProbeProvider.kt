@@ -26,6 +26,7 @@ class SynchronizationProbeProvider : ContentProvider() {
         when (method) {
             METHOD_SYNC -> traced { repository.rescanLibrary() }
             METHOD_REBUILD -> traced { repository.rebuildLibrary() }
+            METHOD_Q31_SYNC -> traced { repository.rescanLibrary() }
             METHOD_CATALOG -> Unit
             else -> error("Unsupported synchronization probe method: $method")
         }
@@ -33,7 +34,12 @@ class SynchronizationProbeProvider : ContentProvider() {
         if (method != METHOD_CATALOG) {
             Log.i(LOG_TAG, "method=$method elapsedNanos=$elapsedNanos")
         }
-        catalogBundle(repository.getAllSongs(), elapsedNanos, arg)
+        val songs = repository.getAllSongs()
+        if (method == METHOD_Q31_SYNC) {
+            q31CatalogBundle(songs, elapsedNanos)
+        } else {
+            catalogBundle(songs, elapsedNanos, arg)
+        }
     }
 
     private suspend fun traced(block: suspend () -> Unit) {
@@ -74,6 +80,29 @@ class SynchronizationProbeProvider : ContentProvider() {
         return directory.removePrefix(FIXTURE_RELATIVE_ROOT) + displayName
     }
 
+    private fun q31CatalogBundle(allSongs: List<Song>, elapsedNanos: Long): Bundle {
+        val songs = allSongs
+            .filter { song ->
+                song.sourceType == SongSourceType.MEDIA_STORE &&
+                    song.relativePath?.replace('\\', '/')?.startsWith(Q31_RELATIVE_ROOT) == true
+            }
+            .sortedWith(compareBy<Song>({ it.relativePath }, { it.displayName }))
+        return Bundle().apply {
+            putLong(KEY_ELAPSED_NANOS, elapsedNanos)
+            putInt(KEY_Q31_COUNT, songs.size)
+            putStringArray(KEY_Q31_IDS, songs.map(Song::id).toTypedArray())
+            putStringArray(KEY_Q31_CONTENT_URIS, songs.map(Song::contentUri).toTypedArray())
+            putStringArray(KEY_Q31_DISPLAY_NAMES, songs.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q31_TITLES, songs.map { it.title.orEmpty() }.toTypedArray())
+            putStringArray(KEY_Q31_ARTISTS, songs.map { it.artist.orEmpty() }.toTypedArray())
+            putStringArray(KEY_Q31_ALBUMS, songs.map { it.album.orEmpty() }.toTypedArray())
+            putIntArray(KEY_Q31_TRACKS, songs.map { it.trackNumber ?: -1 }.toIntArray())
+            putIntArray(KEY_Q31_DISCS, songs.map { it.discNumber ?: -1 }.toIntArray())
+            putIntArray(KEY_Q31_YEARS, songs.map { it.year ?: -1 }.toIntArray())
+            putStringArray(KEY_Q31_RELATIVE_PATHS, songs.map { it.relativePath.orEmpty() }.toTypedArray())
+        }
+    }
+
     private fun identityFingerprint(identities: List<String>): String {
         val digest = MessageDigest.getInstance("SHA-256")
         identities.forEach { identity ->
@@ -107,6 +136,7 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val METHOD_SYNC = "sync"
         const val METHOD_REBUILD = "rebuild"
         const val METHOD_CATALOG = "catalog"
+        const val METHOD_Q31_SYNC = "q3.1-sync"
         const val KEY_ELAPSED_NANOS = "elapsedNanos"
         const val KEY_FIXTURE_COUNT = "fixtureCount"
         const val KEY_UNIQUE_IDENTITIES = "uniqueIdentities"
@@ -116,7 +146,19 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val KEY_INSPECTED_TITLE = "inspectedTitle"
         const val KEY_INSPECTED_ARTIST = "inspectedArtist"
         const val KEY_INSPECTED_ALBUM = "inspectedAlbum"
+        const val KEY_Q31_COUNT = "q31Count"
+        const val KEY_Q31_IDS = "q31Ids"
+        const val KEY_Q31_CONTENT_URIS = "q31ContentUris"
+        const val KEY_Q31_DISPLAY_NAMES = "q31DisplayNames"
+        const val KEY_Q31_TITLES = "q31Titles"
+        const val KEY_Q31_ARTISTS = "q31Artists"
+        const val KEY_Q31_ALBUMS = "q31Albums"
+        const val KEY_Q31_TRACKS = "q31Tracks"
+        const val KEY_Q31_DISCS = "q31Discs"
+        const val KEY_Q31_YEARS = "q31Years"
+        const val KEY_Q31_RELATIVE_PATHS = "q31RelativePaths"
         const val LOG_TAG = "LibrePlayerSyncProbe"
         private const val FIXTURE_RELATIVE_ROOT = "Music/LibrePlayerBenchmark/MEDIUM/"
+        private const val Q31_RELATIVE_ROOT = "Music/LibrePlayerQ31/"
     }
 }

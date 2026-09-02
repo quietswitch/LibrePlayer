@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import com.libreplayer.library.semantics.decodeMediaStoreTrackNumber
 import androidx.annotation.RequiresApi
 import androidx.documentfile.provider.DocumentFile
 import com.libreplayer.data.repository.SongSourceType
@@ -290,6 +291,7 @@ class DeviceLibraryScanner(
     private fun Cursor.toScannedSong(collection: Uri): ScannedSong {
         val mediaId = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media._ID))
         val rawTrackNumber = getInt(getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK))
+        val trackDiscNumbers = decodeMediaStoreTrackNumber(rawTrackNumber)
         val contentUri = ContentUris.withAppendedId(collection, mediaId)
         val albumId = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID))
         return ScannedSong(
@@ -300,8 +302,8 @@ class DeviceLibraryScanner(
             artist = getString(getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)),
             album = getString(getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)),
             durationMs = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)),
-            trackNumber = rawTrackNumber.takeIf { it != 0 }?.rem(1000),
-            discNumber = rawTrackNumber.takeIf { it >= 1000 }?.div(1000),
+            trackNumber = trackDiscNumbers.trackNumber,
+            discNumber = trackDiscNumbers.discNumber,
             year = getInt(getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)).takeIf { it > 0 },
             dateAddedEpochSeconds = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)),
             dateModifiedEpochSeconds = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)),

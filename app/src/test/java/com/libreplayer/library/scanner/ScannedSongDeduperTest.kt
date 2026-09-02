@@ -69,6 +69,44 @@ class ScannedSongDeduperTest {
     }
 
     @Test
+    fun `dedupe does not merge distinct occurrences from metadata equality`() {
+        val first = scannedSong(
+            id = "media:1",
+            sourceType = SongSourceType.MEDIA_STORE,
+            contentUri = "content://media/external/audio/media/1",
+            displayName = "Twin.mp3",
+            relativePath = null,
+            title = "Twin",
+            artist = "Identity Artist",
+            album = "Identity Album",
+            durationMs = 31_000L,
+        )
+        val second = first.copy(
+            id = "media:2",
+            contentUri = "content://media/external/audio/media/2",
+        )
+
+        assertThat(ScannedSongDeduper.dedupe(listOf(first, second))).hasSize(2)
+    }
+
+    @Test
+    fun `dedupe preserves matching paths on different storage volumes`() {
+        val primary = scannedSong(
+            id = "document:primary",
+            sourceType = SongSourceType.DOCUMENT,
+            contentUri = "content://com.android.externalstorage.documents/document/primary%3AMusic%2FTrack.mp3",
+            displayName = "Track.mp3",
+            relativePath = null,
+        )
+        val secondary = primary.copy(
+            id = "document:secondary",
+            contentUri = "content://com.android.externalstorage.documents/document/1234-5678%3AMusic%2FTrack.mp3",
+        )
+
+        assertThat(ScannedSongDeduper.dedupe(listOf(primary, secondary))).hasSize(2)
+    }
+
+    @Test
     fun `dedupe preserves alternate artwork metadata when preferred row has none`() {
         val mediaStoreSong = scannedSong(
             id = "media:123",
