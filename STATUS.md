@@ -39,11 +39,11 @@ Version `1.0.4` (`versionCode` 5) is the current release candidate. Permanent si
 
 ## Last Meaningful Milestone Reached
 
-Version `1.0.4` release candidate: stable local playback, incremental library synchronization, corrected SAF rescans, Audio Details, deduped library rows, working artwork across primary surfaces, permission recovery, and playback-state restoration.
+Q2 — Playback Mastery: **CLOSED**. The controlling contract is `PLAYBACK_SEMANTICS.md`; the curated milestone index is `performance-baselines/q2-playback-authority.json`. Q2 establishes coherent queue, seek, transition, focus, MediaSession/background, output-safety, failure-recovery, and bounded long-session behavior while retaining one service-owned player and session. Its documented hardware, acoustic, OEM, and endurance limits remain explicit.
 
 ## Next Recommended Step
 
-After the pre-publication verification is accepted, create the permanent pseudonymous release key outside the repository, then sign and verify the `1.0.4` APK according to `RELEASE.md`.
+Next phase: Q3 — Library Mastery.
 
 ## Benchmark Foundation
 

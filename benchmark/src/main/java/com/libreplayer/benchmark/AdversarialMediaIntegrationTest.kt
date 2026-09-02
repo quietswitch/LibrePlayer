@@ -24,6 +24,169 @@ class AdversarialMediaIntegrationTest {
     private val device = UiDevice.getInstance(instrumentation)
 
     @Test
+    fun playbackMasteryCloseAuthority() {
+        val results = linkedMapOf<String, String>()
+        try {
+            bringTargetForeground()
+            val initialLibraryCount = libraryCount()
+            val targetPid = targetPid()
+
+            var baseline = prepare("q2.8-churn")
+            requireActive(baseline, Q29_LONG_QUEUE[0], 0)
+            check(baseline.mediaIds == Q29_LONG_QUEUE)
+            requireSingleSession(Q29_LONG_QUEUE[0], "Q2.8 churn 1")
+            baseline = requireAdvance(baseline)
+            results["QUEUE"] = baseline.summary()
+
+            val sought = awaitAfter("seek", "19000", "ordinary closeout seek") {
+                it.mediaId == Q29_LONG_QUEUE[0] &&
+                    it.currentIndex == 0 &&
+                    it.positionMs in 18_700L..19_700L &&
+                    it.isPlaying
+            }
+            val automaticB = await("automatic closeout A to B") {
+                it.mediaId == Q29_LONG_QUEUE[1] &&
+                    it.currentIndex == 1 &&
+                    it.positionMs < ITEM_START_TOLERANCE_MS &&
+                    it.isPlaying &&
+                    !it.hasPlayerError
+            }
+            check(automaticB.transitionCount > sought.transitionCount)
+            check(automaticB.mediaIds == Q29_LONG_QUEUE)
+            results["SEEK-TRANSITION"] = "seek=${sought.summary()} auto=${automaticB.summary()}"
+
+            val previous = awaitAfter("system-previous", description = "system Previous below threshold") {
+                it.mediaId == Q29_LONG_QUEUE[0] &&
+                    it.currentIndex == 0 &&
+                    it.positionMs < ITEM_START_TOLERANCE_MS &&
+                    it.isPlaying
+            }
+            requireActive(previous, Q29_LONG_QUEUE[0], 0)
+            check(previous.mediaIds == Q29_LONG_QUEUE)
+            results["PREVIOUS"] = previous.summary()
+
+            requestAggressor(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).requireGranted()
+            val suppressed = await("transient focus suppression") {
+                it.mediaId == Q29_LONG_QUEUE[0] &&
+                    it.playWhenReady &&
+                    !it.isPlaying &&
+                    it.suppressionReason == SUPPRESSION_TRANSIENT_FOCUS
+            }
+            val focusPaused = awaitAfter("system-pause", description = "Pause while focus suppressed") {
+                it.mediaId == Q29_LONG_QUEUE[0] && !it.playWhenReady && !it.isPlaying
+            }
+            abandonAggressor()
+            val remainsPaused = await("focus abandon does not resume cancelled intent") {
+                it.mediaId == Q29_LONG_QUEUE[0] &&
+                    !it.playWhenReady &&
+                    !it.isPlaying &&
+                    it.suppressionReason == SUPPRESSION_NONE
+            }
+            val focusResumed = awaitAfter("system-play", description = "explicit Play after focus") {
+                it.mediaId == Q29_LONG_QUEUE[0] &&
+                    it.playWhenReady &&
+                    it.isPlaying &&
+                    it.suppressionReason == SUPPRESSION_NONE
+            }
+            results["FOCUS"] =
+                "loss=${suppressed.summary()} pause=${focusPaused.summary()} " +
+                    "abandon=${remainsPaused.summary()} play=${focusResumed.summary()}"
+
+            sendNoisyBroadcast()
+            val noisy = await("becoming-noisy safety pause") {
+                it.mediaId == Q29_LONG_QUEUE[0] &&
+                    !it.playWhenReady &&
+                    !it.isPlaying &&
+                    it.suppressionReason == SUPPRESSION_NONE
+            }
+            val postNoisyPlay = awaitAfter("system-play", description = "explicit Play after noisy") {
+                it.mediaId == Q29_LONG_QUEUE[0] &&
+                    it.playWhenReady &&
+                    it.isPlaying &&
+                    it.suppressionReason == SUPPRESSION_NONE
+            }
+            results["NOISY"] = "pause=${noisy.summary()} play=${postNoisyPlay.summary()}"
+
+            device.pressHome()
+            val backgroundNext = awaitAfter("system-next", description = "background system Next") {
+                it.mediaId == Q29_LONG_QUEUE[1] &&
+                    it.currentIndex == 1 &&
+                    it.isPlaying &&
+                    !it.hasPlayerError
+            }
+            requireSingleSession(Q29_LONG_QUEUE[1], "Q2.8 churn 2")
+            check(call("release-controller").getBoolean("passed"))
+            call("reconnect")
+            val reconnected = await("controller reconnect") {
+                it.connected &&
+                    it.mediaId == Q29_LONG_QUEUE[1] &&
+                    it.currentIndex == 1 &&
+                    it.isPlaying
+            }
+            check(reconnected.mediaIds == Q29_LONG_QUEUE)
+            check(reconnected.sessionDisconnects == 0)
+            results["BACKGROUND-SESSION"] =
+                "next=${backgroundNext.summary()} reconnect=${reconnected.summary()}"
+
+            val failure = prepareFailure(
+                "recovery-transition",
+                MISSING,
+                0,
+                ERROR_IO_FILE_NOT_FOUND,
+            )
+            requireFailure(failure, MISSING, 0, ERROR_IO_FILE_NOT_FOUND)
+            requireStableFailure(failure)
+            requireSingleSession(MISSING, MISSING_TITLE)
+            val recoveredA = awaitAfter("system-next", description = "one-action error recovery") {
+                it.mediaId == GOOD_A &&
+                    it.currentIndex == 1 &&
+                    it.isPlaying &&
+                    !it.hasPlayerError
+            }
+            val healthySuccessor = await("healthy automatic transition after recovery") {
+                it.mediaId == GOOD_C &&
+                    it.currentIndex == 2 &&
+                    it.isPlaying &&
+                    !it.hasPlayerError &&
+                    it.uiErrorMessage == null
+            }
+            check(healthySuccessor.errorCount == recoveredA.errorCount)
+            results["ERROR-RECOVERY"] =
+                "failure=${failure.summary()} recovered=${recoveredA.summary()} " +
+                    "successor=${healthySuccessor.summary()}"
+
+            val finalPaused = awaitAfter("system-pause", description = "final ordinary Pause") {
+                it.mediaId == GOOD_C && !it.playWhenReady && !it.isPlaying && !it.hasPlayerError
+            }
+            val finalPlay = awaitAfter("system-play", description = "final ordinary Play") {
+                it.mediaId == GOOD_C &&
+                    it.currentIndex == 2 &&
+                    it.playWhenReady &&
+                    it.isPlaying &&
+                    it.suppressionReason == SUPPRESSION_NONE &&
+                    !it.hasPlayerError
+            }
+            val finalState = requireAdvance(finalPlay)
+            requireActive(finalState, GOOD_C, 2)
+            check(finalState.mediaIds == listOf(MISSING, GOOD_A, GOOD_C))
+            check(finalState.sessionDisconnects == 0)
+            check(targetPid() == targetPid)
+            check(libraryCount() == initialLibraryCount)
+            requireSingleSession(GOOD_C, GOOD_C_TITLE)
+            results["FINAL"] =
+                "pause=${finalPaused.summary()} play=${finalPlay.summary()} final=${finalState.summary()}"
+
+            results.forEach { (phase, result) ->
+                Log.i(Q29_LOG_TAG, "$phase $result")
+                println("Q2.9 $phase $result")
+            }
+        } finally {
+            runCatching { abandonAggressor() }
+            runCatching { call("reset") }
+        }
+    }
+
+    @Test
     fun adversarialMediaAndFailureRecoveryAuthority() {
         val results = linkedMapOf<String, String>()
         try {
@@ -346,6 +509,11 @@ class AdversarialMediaIntegrationTest {
 
     private fun libraryCount(): Int = call("library-summary").getInt("songCount")
 
+    private fun targetPid(): String =
+        device.executeShellCommand("pidof $TARGET_PACKAGE").trim().also {
+            check(it.matches(Regex("\\d+"))) { "LibrePlayer process was missing" }
+        }
+
     private fun bringTargetForeground() {
         val intent = requireNotNull(
             instrumentation.context.packageManager.getLaunchIntentForPackage(TARGET_PACKAGE),
@@ -490,6 +658,7 @@ class AdversarialMediaIntegrationTest {
         const val TARGET_PACKAGE = "com.libreplayer"
         const val AGGRESSOR_PACKAGE = "com.libreplayer.benchmark"
         const val LOG_TAG = "LibrePlayerQ27"
+        const val Q29_LOG_TAG = "LibrePlayerQ29"
         const val GOOD_A = "q2.7:good:a"
         const val GOOD_C = "q2.7:good:c"
         const val GOOD_LONG = "q2.7:good:long"
@@ -512,6 +681,7 @@ class AdversarialMediaIntegrationTest {
         const val SUPPRESSION_TRANSIENT_FOCUS = 1
         const val POSITION_OBSERVATION_MS = 700L
         const val ACTIVE_POSITION_MINIMUM_MS = 350L
+        const val ITEM_START_TOLERANCE_MS = 1_000L
         const val FAILURE_STABILITY_MS = 500L
         const val FAILURE_POSITION_TOLERANCE_MS = 100L
         const val POLL_MS = 30L
@@ -522,6 +692,12 @@ class AdversarialMediaIntegrationTest {
         const val NOTIFICATION_TIMEOUT_MS = 8_000L
         const val SESSION_CONTEXT_CHARS = 8_000
         val PROBE_URI: Uri = Uri.parse("content://com.libreplayer.adversarial-media-probe")
+        val Q29_LONG_QUEUE = listOf(
+            "q2.8:churn:0",
+            "q2.8:churn:1",
+            "q2.8:churn:2",
+            "q2.8:churn:3",
+        )
         val EXPECTED_FIXTURE_MANIFEST = arrayListOf(
             "good-a.flac:34617:99ba43f6984bb05a8753f0edf3df44f2f10a371f0d2f4a161a7401c1e1b91122",
             "good-c.flac:34617:99ba43f6984bb05a8753f0edf3df44f2f10a371f0d2f4a161a7401c1e1b91122",

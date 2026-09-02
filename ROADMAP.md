@@ -1,5 +1,13 @@
 # Roadmap
 
+## Milestones
+
+- Q1 — Quality Foundation: COMPLETE
+- Q1.1 — Performance Authority: CLOSED
+- Q2 — Playback Mastery: CLOSED
+
+Next phase: Q3 — Library Mastery.
+
 ## High Priority
 
 - Add explicit Room migrations before any further schema changes

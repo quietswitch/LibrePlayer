@@ -1,8 +1,38 @@
 # Playback and queue semantics
 
-This document is the Q2.1-Q2.5 contract for LibrePlayer 1.0.4. It describes current
-product behavior; later playback work should preserve it unless a milestone
-explicitly changes the contract.
+This document is the controlling Q2 contract for LibrePlayer 1.0.4. It describes
+current product behavior; later playback work should preserve it unless a
+milestone explicitly changes the contract.
+
+## Playback Mastery — Q2 Controlling Contract
+
+- `PlaybackService` owns one `ExoPlayer` and one `MediaSession`; foreground UI,
+  notification, media keys, and external controllers operate on that shared
+  player authority. Playback remains service-owned without an Activity.
+- The Media3 timeline, current item, and occurrence index are authoritative.
+  Duplicate media IDs remain distinct by occurrence/index. Media3
+  `currentPosition` is the live clock; persisted position is restoration metadata,
+  not a second position authority.
+- Playback intent is represented by `playWhenReady`, audible progress by
+  `isPlaying`, and temporary constraint by `playbackSuppressionReason`. Final
+  `STATE_ENDED` and fatal `PlaybackException` state remain distinct.
+- Previous uses one foreground/system boundary: `> 5,000 ms` restarts the current
+  occurrence; `<= 5,000 ms` selects the previous occurrence or is a first-item
+  no-op.
+- Seeks preserve the current occurrence and play intent, use the bounded Q2.2
+  normalization rules, and leave end-boundary transitions to Media3. Natural,
+  repeat, shuffle, and manual traversal all retain Media3 timeline authority and
+  the single gapless-capable playlist path without app stop/reprepare.
+- Media3 owns audio focus. Transient focus suppression retains play intent and may
+  resume on gain; user Pause cancels that intent. Media3 becoming-noisy handling
+  instead creates a true safety pause with no suppression and requires explicit
+  Play.
+- Failure recovery is user-directed. A fatal item remains current with a stable
+  error; Play retries it once, while Next, Previous, or direct selection may leave
+  it and recover. LibrePlayer has no auto-skip, auto-retry, or failure watchdog.
+- Q2.8 establishes bounded long-session continuity, transition, lifecycle,
+  recovery, and resource behavior. It adds no watchdog, reset architecture,
+  second player/session, or universal device-endurance claim.
 
 ## Authority and projections
 
@@ -665,3 +695,31 @@ physical thermal/battery behavior, Bluetooth endurance, Android Auto behavior,
 or a universal memory threshold. Exact checkpoints, fixture hashes, recovery
 history, and the invalid benchmark-only post-wake race are retained in
 `performance-baselines/q2.8-long-session.json`.
+
+## Q2 regression routing and authority limits
+
+| Change surface | Required focused authority |
+| --- | --- |
+| Queue or core playback commands | Q2.1 |
+| Seek, position, or restoration | Q2.2 |
+| Transition, repeat, shuffle, or gapless-capable path | Q2.3 |
+| Audio focus, play intent, or suppression | Q2.4 |
+| MediaSession, notification, background, or media keys | Q2.5 |
+| Becoming noisy or output safety | Q2.6 |
+| Playback error or recovery | Q2.7 |
+| Service, player, listener, or long-lived resource behavior | Q2.8 |
+| Broad playback release candidate | One bounded Q2.9 integrated acceptance |
+| Previous-threshold behavior | Q2.1 and Q2.5 focused exact-boundary authority |
+
+Do not run every playback authority for every change. Route a change to the
+smallest controlling authority above, expanding only when its architecture or
+cross-surface behavior requires it.
+
+Q2 does not establish sample-perfect/acoustic gapless output, exact acoustic
+duck attenuation, physical wired or Bluetooth/OEM route behavior, Bluetooth
+endurance, cold media-button resumption without an active session,
+deterministic decoder-init/runtime-failure behavior, multi-day endurance,
+universal OEM behavior, physical battery/thermal endurance, Android Auto,
+exact DAC/output-path behavior, or a high-resolution/DSP/advanced audio engine.
+Those explicit deferrals do not weaken the controlled playback semantics Q2
+does establish.

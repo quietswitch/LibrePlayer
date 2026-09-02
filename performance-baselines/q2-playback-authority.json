@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "authority": "CONTROLLED PLAYBACK MASTERY AUTHORITY — NOT A UNIVERSAL ANDROID AUDIO OR DEVICE-COMPATIBILITY CLAIM",
+  "milestone": "Q2 — Playback Mastery",
+  "status": "CLOSED",
+  "closeout_predecessor": "40fae5de4b722edfb302fdb0d1082c06c0e0e58e",
+  "closeout_commit": {
+    "selector": "SELF",
+    "subject": "Close Q2 playback mastery",
+    "note": "SELF denotes the commit that first contains this record; a Git commit cannot embed its own hash."
+  },
+  "immutable_release_reference": {
+    "tag": "v1.0.4",
+    "peeled_commit": "d2c212640ea3955591799a21d5bd8e382a628a57",
+    "version_name": "1.0.4",
+    "version_code": 5,
+    "unchanged": true
+  },
+  "controlling_contract": {
+    "document": "PLAYBACK_SEMANTICS.md",
+    "player": "one PlaybackService-owned ExoPlayer",
+    "queue": "Media3 timeline and occurrence/index are authoritative",
+    "position": "Media3 currentPosition is live authority; persistence is restoration metadata only",
+    "session": "one MediaSession over the same service player",
+    "play_intent": "playWhenReady, isPlaying, playbackSuppressionReason, STATE_ENDED, and fatal PlaybackException state remain distinct",
+    "previous": "> 5,000 ms restarts current; <= 5,000 ms selects previous or is a first-item no-op",
+    "focus": "Media3-owned; transient suppression retains intent unless the user pauses",
+    "output_safety": "Media3 becoming-noisy handling produces a true pause with no suppression",
+    "failure": "USER-DIRECTED; no automatic skip/retry state machine",
+    "background": "PlaybackService remains authoritative without an Activity",
+    "long_lived_operation": "no watchdog/reset architecture; bounded Q2.8 resource behavior accepted"
+  },
+  "contradiction_audit": {
+    "D1_play_pause_state": "CONSISTENT — action follows play intent, with distinct ended restart and fatal-error retry semantics",
+    "D2_previous": "CONSISTENT — foreground and system paths both use the strict > 5,000 ms restart boundary",
+    "D3_seek_end_boundary": "CONSISTENT — Q2.2 normalization feeds Media3 Q2.3 transition/ended semantics without a second clock",
+    "D4_repeat_one": "CONSISTENT — natural completion repeats current while manual Next/Previous traverses",
+    "D5_focus_vs_noisy": "CONSISTENT — focus suppression retains intent; noisy clears intent and suppression",
+    "D6_ended_vs_error": "CONSISTENT — final STATE_ENDED restarts; fatal STATE_IDLE/error uses bounded user-directed recovery",
+    "D7_background_error": "CONSISTENT — service/session remain usable and external navigation recovers without an Activity",
+    "D8_background_focus": "CONSISTENT — Media3/service focus ownership is Activity-independent",
+    "D9_background_noisy": "CONSISTENT — Media3/service noisy handling is Activity-independent",
+    "D10_long_session_recovery": "CONSISTENT — Q2.8 observed one late error, one recovery action, and three later healthy transitions"
+  },
+  "authorities": {
+    "Q2.1": {
+      "commit": "9a8a37ecdb2bf16f66f852c1be44362855531fdd",
+      "purpose": "Playback State & Queue Semantics",
+      "principal_semantics": "single Media3 queue, occurrence-aware current identity, play-intent controls, manual traversal, repeat and shuffle",
+      "principal_evidence": "focused unit and bounded real Media3/service queue-command authority",
+      "major_limitation": "exact restored shuffle permutation is not promised",
+      "regression_trigger": "queue or core playback-command changes"
+    },
+    "Q2.2": {
+      "commit": "83937a996335ae85375fb27f7a922bd5f3fcef21",
+      "purpose": "Seeking & Position Semantics",
+      "principal_semantics": "one live Media3 clock, normalized seeks, drag isolation, bounded restoration",
+      "principal_evidence": "semantic boundary tests and bounded player/service seeking authority",
+      "major_limitation": "end completion belongs to Q2.3 rather than a separate seek guarantee",
+      "regression_trigger": "seek, position, ticker, duration, or restoration changes"
+    },
+    "Q2.3": {
+      "commit": "9aeb71d9518f43a8beb9d23567c152e50214b1e1",
+      "purpose": "Track Transition & Gapless Mastery",
+      "principal_semantics": "Media3-owned automatic/manual/repeat/shuffle transitions and final-ended restart",
+      "principal_evidence": "real transition matrices, background/reconnect checks, and WAV/FLAC/MP3/AAC path signals",
+      "major_limitation": "sample-perfect or acoustic gapless output is not established",
+      "regression_trigger": "transition, repeat, shuffle, end-boundary, or gapless-path changes"
+    },
+    "Q2.4": {
+      "commit": "00b366ddb8319cd5c0bad93fbe1bf647c083e26b",
+      "purpose": "Audio Focus & Interruption Mastery",
+      "principal_semantics": "Media3-owned focus with explicit play-intent and suppression distinction",
+      "principal_evidence": "real API 36 F1–F9 focus grant/loss/gain/background/reconnect authority",
+      "major_limitation": "exact acoustic duck attenuation is not established",
+      "regression_trigger": "audio focus, play intent, suppression, or primary-control changes"
+    },
+    "Q2.5": {
+      "commit": "a29191eb9a7a68ba7dfb4bc16ac3cacf86441fdd",
+      "purpose": "Background, MediaSession & System-Control Mastery",
+      "principal_semantics": "one service session, coherent external controls, notification, lifecycle, and background projection",
+      "principal_evidence": "real API 36 B1–B13 MediaSession/background/system-control authority",
+      "major_limitation": "cold media-button resumption without an active session is deferred",
+      "regression_trigger": "MediaSession, notification, background, task lifecycle, or media-key changes"
+    },
+    "Q2.6": {
+      "commit": "6a3ef10508ff42527cb73043a71f18ab82e8fb1d",
+      "purpose": "Device Switching & Output Robustness",
+      "principal_semantics": "Media3 becoming-noisy safety pause distinct from focus suppression",
+      "principal_evidence": "real API 36 D1–D11 speaker/noisy/service/session/persistence authority",
+      "major_limitation": "physical wired, Bluetooth, OEM route, DAC, and acoustic authority is deferred",
+      "regression_trigger": "becoming-noisy, audio attributes, output safety, or route-observation changes"
+    },
+    "Q2.7": {
+      "commit": "ef95279d62904dbbfed65ba0fa00e73c08895710",
+      "purpose": "Adversarial Media & Failure Recovery",
+      "principal_semantics": "stable failed occurrence with one bounded user-directed retry/navigation recovery",
+      "principal_evidence": "real API 36 E1–E14 missing, zero, garbage, truncated, background, reconnect, and recovery authority",
+      "major_limitation": "deterministic decoder-init/runtime-failure authority is deferred",
+      "regression_trigger": "playback error, retry, navigation recovery, or stale-source changes"
+    },
+    "Q2.8": {
+      "commit": "a37887de016c57e20bd64b7c16f86e8d9953efb2",
+      "purpose": "Long-Session Playback Reliability",
+      "principal_semantics": "unchanged one-player/session lifecycle with bounded long-lived resource behavior",
+      "principal_evidence": "45:00.186 wall-clock run, 200 natural transitions, shuffle/repeat supplement, lifecycle/control churn, late Q2.7 recovery, and bounded screen-off continuity",
+      "major_limitation": "multi-day, universal OEM, physical battery/thermal, Bluetooth endurance, and universal memory claims are not established",
+      "regression_trigger": "service, player, listener, coroutine, controller, persistence-cadence, or long-lived resource changes",
+      "curated_record": "performance-baselines/q2.8-long-session.json"
+    }
+  },
+  "corrective_previous_boundary": {
+    "commit": "40fae5de4b722edfb302fdb0d1082c06c0e0e58e",
+    "subject": "Align system Previous threshold semantics",
+    "result": "PASS",
+    "unit_boundaries_ms": [4999, 5000, 5001],
+    "real_media_session": "paused 5,000 ms selected previous at position 0; paused 6,000 ms retained current and restarted at 0",
+    "media_sessions": 1,
+    "player_errors": 0,
+    "unexpected_session_disconnects": 0,
+    "regression_trigger": "any foreground or system Previous-threshold change"
+  },
+  "integrated_q2_9_acceptance": {
+    "result": "PASS",
+    "test": "benchmark/src/main/java/com/libreplayer/benchmark/AdversarialMediaIntegrationTest.kt#playbackMasteryCloseAuthority",
+    "environment": {
+      "avd": "LibrePlayer_Benchmark_API_36",
+      "serial": "emulator-5554",
+      "ro_kernel_qemu": 1,
+      "android_api": 36,
+      "abi": "x86_64",
+      "physical_device_used": false
+    },
+    "junit_elapsed_seconds": 13.052,
+    "sequence": [
+      "deterministic four-item valid queue and advancing playback",
+      "ordinary seek and automatic A-to-B transition",
+      "system Previous below threshold",
+      "transient focus suppression, system Pause, focus abandon, explicit Play",
+      "becoming-noisy true pause and explicit Play",
+      "background system Next and controller reconnect",
+      "deterministic missing-source failure and one system-Next recovery",
+      "healthy automatic transition after recovery",
+      "ordinary final system Pause and Play"
+    ],
+    "same_process": true,
+    "media_session_count": 1,
+    "process_crashes": 0,
+    "unexpected_session_disconnects": 0,
+    "queue_corruption": false,
+    "final_state": {
+      "media_id": "q2.7:good:c",
+      "current_index": 2,
+      "queue_size": 3,
+      "position_ms": 949,
+      "playback_state": "READY",
+      "play_when_ready": true,
+      "is_playing": true,
+      "suppression_reason": "NONE",
+      "current_player_error": null,
+      "ui_error": null,
+      "position_advancing": true
+    }
+  },
+  "production_defect_history": [
+    "Q2.1 corrected buffering/suppression toggle action, queue occurrence selection, and duplicate-occurrence UI identity",
+    "Q2.2 bounded unsafe seek/restoration positions",
+    "Q2.3 corrected the final STATE_ENDED first-Play action",
+    "Q2.4 aligned visible primary control with active play intent during suppression",
+    "Q2.7 corrected bounded navigation recovery, stale error projection, and failed play-intent persistence",
+    "Q2 close correction aligned MediaSession Previous at exactly 5,000 ms with foreground semantics"
+  ],
+  "q1_1_regression_decision": {
+    "production_changed_by_q2_9": false,
+    "Q1.1c": "not rerun",
+    "Q1.1d": "not rerun",
+    "Q1.1e": "not rerun",
+    "Q1.1f": "not rerun; Q2.8 provides accepted targeted playback continuity and D2 passed focused verification",
+    "Q1.1g": "not rerun; Q2.8 supplies playback-specific long-session resource authority",
+    "Q1.1h": "not rerun",
+    "Q1.1i": "not rerun"
+  },
+  "baseline_profile": {
+    "regenerated": false,
+    "baseline_prof_sha256": "72473B10AD3F9F2F5610D480DB98E7BDF4AB125069F62876677A1FF2BA29A23D",
+    "startup_prof_sha256": "A751050D1C54A65A99C1EDE071DBA66A1403314C0F6795984B64279852167B3",
+    "release_entries": ["assets/dexopt/baseline.prof", "assets/dexopt/baseline.profm"],
+    "close_decision": "accepted profile remains valid and packageable; no profile-related playback correctness blocker",
+    "next_release_note": "Q2.4/Q2.5 accumulated small changes are due for normal next-release profile regeneration/reassessment"
+  },
+  "future_regression_routing": {
+    "queue_or_core_commands": ["Q2.1"],
+    "seek_position_restore": ["Q2.2"],
+    "transition_repeat_shuffle_gapless_path": ["Q2.3"],
+    "audio_focus_play_intent_suppression": ["Q2.4"],
+    "media_session_notification_background_media_keys": ["Q2.5"],
+    "becoming_noisy_output_safety": ["Q2.6"],
+    "playback_error_recovery": ["Q2.7"],
+    "service_player_listener_long_lived_resource": ["Q2.8"],
+    "broad_playback_release_candidate": ["bounded Q2.9 integrated acceptance"],
+    "previous_threshold": ["Q2.1 focused boundary", "Q2.5 focused boundary"]
+  },
+  "release_privacy_invariants": {
+    "application_id": "com.libreplayer",
+    "version_name": "1.0.4",
+    "version_code": 5,
+    "unsigned": true,
+    "debuggable": false,
+    "profileable": false,
+    "internet_permission": false,
+    "access_network_state_permission": false,
+    "test_or_debug_component_leaks": 0,
+    "baseline_profile_packaged": true,
+    "runtime_dependency_changes_across_q2": false,
+    "historical_tag_unchanged": true
+  },
+  "known_limits": [
+    "sample-perfect or acoustic gapless output not established",
+    "exact acoustic duck attenuation not established",
+    "physical wired route confirmation deferred",
+    "Bluetooth and OEM route confirmation deferred",
+    "Bluetooth endurance deferred",
+    "cold media-button resumption without an active session deferred",
+    "deterministic decoder-init/runtime-failure authority deferred",
+    "multi-day endurance not established",
+    "universal OEM playback authority not established",
+    "physical battery and thermal endurance not established",
+    "Android Auto not established",
+    "exact DAC or output-path authority not established",
+    "high-resolution, DSP, and advanced audio-engine behavior remains outside Q2"
+  ],
+  "close_criteria": {
+    "D1_through_D10_consistent": true,
+    "integrated_acceptance_passed": true,
+    "master_contract_documented": true,
+    "future_regression_routing_documented": true,
+    "release_privacy_profile_invariants_intact": true,
+    "unresolved_critical_playback_blocker": false
+  }
+}
