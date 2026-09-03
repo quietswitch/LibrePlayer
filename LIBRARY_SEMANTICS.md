@@ -1,6 +1,6 @@
 # LibrePlayer Library Semantics
 
-This document is the Q3.1 authority for local-library identity, metadata, and grouping. It describes the current Room schema (version 1) and ingestion behavior. It does not introduce a schema migration.
+This document is the Q3.1 authority for local-library identity and metadata and the Q3.2 authority for browse-group membership. It describes the current Room schema (version 1), ingestion, and browsing behavior. It does not introduce a schema migration.
 
 ## Physical and logical song identity
 
@@ -33,9 +33,9 @@ An album group key is normalized album title plus grouping artist. The grouping-
 
 The current version-1 core row does not retain album-artist or compilation tags. Consequently the active repository uses track artist as the documented fallback. A multi-artist album is not guessed to be a compilation, and tracks with different track artists currently form separate albums unless their stored artist values are the same (for example, a literal `Various Artists`). Adding album-artist/compilation authority requires an explicit future schema and migration, not a Q3.1 heuristic.
 
-Artist groups use normalized track artist. Album membership does not change a song's artist identity. Missing artists share the presentation group `Unknown artist`.
+Artist groups use normalized track artist. Album membership does not change a song's artist identity. Missing artists use the presentation label `Unknown artist`, but their typed group identity remains distinct from a literal source tag such as `Unknown Artist`.
 
-Album IDs and artist IDs remain deterministic presentation/grouping keys. Playlist membership, favorites, recent-play history, and playback queue restoration reference song IDs, never album or artist grouping keys.
+Album and artist IDs are deterministic grouping keys. Each normalized metadata component is typed as missing or present and length-prefixed, preventing delimiter collisions and preserving the difference between missing metadata and literal fallback-like text. Playlist membership, favorites, recent-play history, and playback queue restoration reference song IDs, never album or artist grouping keys.
 
 ## Track, disc, year, genre, and folder semantics
 
@@ -53,6 +53,57 @@ LibrePlayer currently has no authoritative folder entity or folder-browsing scre
 ## Persistence and synchronization
 
 Rescans upsert by song ID and preserve the favorite bit for an existing ID. Removed source IDs remove the song row and rebuild album/artist aggregates through the existing synchronization transaction. Playlists store song IDs, recent plays store song IDs, and playback snapshots restore source occurrence IDs. The Q3.1 changes do not alter any of those IDs, tables, foreign-key policies, or database version.
+
+## Browsing and grouping semantics
+
+Group membership is Q3.2 authority. Comprehensive group and song ordering remains Q3.3 authority; Q3.2 preserves the existing ordering behavior where a deterministic list is required.
+
+### Songs
+
+The Songs surface contains every currently available playable `Song` occurrence exactly once after Q3.1 cross-source reconciliation. Its lazy-list key is the occurrence `Song.id`. Missing-title text is derived for display and does not affect membership or row identity. Selecting a row passes the displayed song list and selected occurrence index to playback unchanged.
+
+### Albums and album detail
+
+The Albums surface contains one aggregate for each accepted album group ID: typed normalized album title plus typed normalized grouping artist. Disc number is not part of album identity, so all discs belonging to the same album group remain together. Same-title albums with different artists remain separate. Different source occurrences with identical tags remain separate songs inside the same album.
+
+Album rows use `Album.id` as their Compose and navigation identity. Navigation percent-encodes the compact ID in the route, and Navigation supplies the decoded string argument to the destination; the destination does not decode it a second time. This preserves literal percent sequences, slashes, query characters, fragments, and separators in source metadata.
+
+Album detail membership is recomputed from the current observable song catalog using the same group-ID helper used by aggregate construction. Its displayed rows use `Song.id`. The Room aggregate's `songCount` and duration are built from that same membership rule. There is no separate Play Album action; selecting a detail row hands exactly the displayed membership list and occurrence index to Q2 playback.
+
+Missing album metadata appears under the presentation label `Unknown album`, using a missing-value group component. A literal `Unknown Album` tag has a distinct present-value group component even though the two labels differ only by source casing. Under Room v1's track-artist fallback, compilation-like albums with different track artists remain split; Q3.2 does not infer compilation state.
+
+### Artists and artist detail
+
+The Artists surface groups by typed, normalized persisted track artist. Case and surrounding whitespace normalize together; punctuation and articles do not. Missing track artist uses a distinct missing-value ID and the `Unknown artist` presentation label. A literal `Unknown Artist` source tag remains a different group.
+
+Artist rows use `Artist.id`; artist-detail song rows use `Song.id`; nested album rows use the full `Album.id`. Artist detail derives its songs from the current catalog using the artist group ID and derives its album list from those songs' full album group IDs. Therefore same-title albums cannot navigate across artist groups. The displayed artist song count and album count use the same current memberships. There is no separate Play Artist action; selecting a song passes the displayed artist membership and occurrence index unchanged.
+
+### Refresh coherence and adjacent domains
+
+Room song, album, and artist rows are updated inside the existing synchronization transaction. The current observable Song occurrence snapshot is the authoritative input for album and artist browsing: it produces the displayed aggregates and the detail memberships. Persisted Room album and artist rows remain synchronization-maintained derived/cache data, but browsing correctness does not depend on regenerating them after an application upgrade. Legacy or stale aggregate IDs therefore cannot hide a valid current group, and adopting the Q3.2 group representation requires no schema migration, destructive reset, or forced library scan.
+
+The single Song collector derives both browse projections on a background dispatcher only when that Song snapshot emits. Settings changes, playlist changes, playback-position ticks, and Compose recomposition do not rerun grouping. A later normal synchronization updates its persisted aggregate cache through the existing transaction and causes the Song-backed browse projection to refresh when membership changes, without changing an active playback media ID.
+
+Folders and genres have no current browse surfaces. Q3.1's source-relative folder definition remains available for later browsing work. Genre remains Audio Details presentation metadata and is not a Q3.2 group. Favorites, playlists, and search are adjacent existing surfaces; Q3.2 does not redesign them, and Q3.3 owns comprehensive sorting and search authority.
+
+## Q3.2 coverage matrix
+
+| Browse behavior | Authority | Classification |
+| --- | --- | --- |
+| Songs membership and row keys | Every reconciled occurrence once; `Song.id` | Correct and covered |
+| Ordinary and multidisc albums | Full typed album group ID; disc excluded from identity | Correct and covered |
+| Same album title / different artist | Distinct full album group IDs | Correct and covered |
+| Identical metadata occurrences | Separate song rows within one group | Correct and covered |
+| Missing versus literal fallback tags | Distinct typed group IDs | Corrected and covered |
+| Delimiter/special-character metadata | Length-prefixed group components; one route decode | Corrected and covered |
+| Album count/detail parity | Shared group helper and current occurrence membership | Correct and covered |
+| Artist membership and nested albums | Track-artist group plus full album IDs | Correct and covered |
+| Artist count/detail parity | Shared group helper and current occurrence membership | Correct and covered |
+| Browse-to-playback identity | Displayed list/index; occurrence ID/URI retained | Correct and covered |
+| Refresh add/remove | Existing transaction plus observable current membership | Correct and covered |
+| Compilation album-artist behavior | Track-artist fallback under Room v1 | Known limitation |
+| Folder and genre browsing | No current browse surfaces | Deferred |
+| Comprehensive ordering and search | Outside Q3.2 membership authority | Deferred to Q3.3 |
 
 ## Q3.1 coverage matrix
 

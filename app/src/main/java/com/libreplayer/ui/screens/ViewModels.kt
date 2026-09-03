@@ -22,6 +22,8 @@ import com.libreplayer.data.repository.ImportedRoot
 import com.libreplayer.data.repository.UserPlaylist
 import com.libreplayer.data.repository.LibrarySyncState
 import com.libreplayer.media.playback.PlaybackConnection
+import com.libreplayer.library.semantics.buildBrowseAlbums
+import com.libreplayer.library.semantics.buildBrowseArtists
 import com.libreplayer.settings.SettingsRepository
 import com.libreplayer.util.LibrarySearchEngine
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -48,14 +51,21 @@ class LibraryViewModel(
         initialValue = AppSettings(),
     )
 
-    private val catalogFlow = combine(
-        libraryRepository.observeSongs(),
-        libraryRepository.observeAlbums(),
-        libraryRepository.observeArtists(),
-        playlistRepository.observePlaylists(),
-    ) { songs, albums, artists, playlists ->
-        LibraryCatalogSnapshot(songs, albums, artists, playlists)
-    }
+    private val browseFlow = libraryRepository.observeSongs()
+        .map { songs ->
+            LibraryBrowseSnapshot(
+                songs = songs,
+                albums = enrichAlbumsWithArtwork(
+                    albums = buildBrowseAlbums(songs),
+                    songs = songs,
+                ),
+                artists = enrichArtistsWithArtwork(
+                    artists = buildBrowseArtists(songs),
+                    songs = songs,
+                ),
+            )
+        }
+        .flowOn(Dispatchers.Default)
 
     private val metadataFlow = combine(
         libraryRepository.observeFavorites(),
@@ -67,21 +77,16 @@ class LibraryViewModel(
     }
 
     private val catalogPresentationFlow = combine(
-        catalogFlow,
+        browseFlow,
+        playlistRepository.observePlaylists(),
         settings,
-    ) { catalog, currentSettings ->
-        val sortedSongs = catalog.songs.sortedWith(songComparator(currentSettings.defaultSortOption))
+    ) { browse, playlists, currentSettings ->
+        val sortedSongs = browse.songs.sortedWith(songComparator(currentSettings.defaultSortOption))
         LibraryCatalogPresentation(
             songs = sortedSongs,
-            albums = enrichAlbumsWithArtwork(
-                albums = catalog.albums,
-                songs = catalog.songs,
-            ),
-            artists = enrichArtistsWithArtwork(
-                artists = catalog.artists,
-                songs = catalog.songs,
-            ),
-            playlists = catalog.playlists,
+            albums = browse.albums,
+            artists = browse.artists,
+            playlists = playlists,
         )
     }.flowOn(Dispatchers.Default)
 
@@ -367,11 +372,10 @@ private fun songComparator(option: LibrarySortOption): Comparator<Song> =
 
 private fun String.normalized(): String = trim().lowercase(Locale.US)
 
-private data class LibraryCatalogSnapshot(
+private data class LibraryBrowseSnapshot(
     val songs: List<Song>,
     val albums: List<Album>,
     val artists: List<Artist>,
-    val playlists: List<UserPlaylist>,
 )
 
 private data class LibraryCatalogPresentation(

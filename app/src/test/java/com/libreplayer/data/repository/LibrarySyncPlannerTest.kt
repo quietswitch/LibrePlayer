@@ -5,6 +5,8 @@ import com.libreplayer.data.database.entity.AlbumEntity
 import com.libreplayer.data.database.entity.ArtistEntity
 import com.libreplayer.data.database.entity.SongEntity
 import com.libreplayer.library.scanner.ScannedSong
+import com.libreplayer.library.semantics.albumGroupingKey
+import com.libreplayer.library.semantics.artistGroupingKey
 import org.junit.Test
 
 class LibrarySyncPlannerTest {
@@ -76,9 +78,11 @@ class LibrarySyncPlannerTest {
 
         assertThat(changes.songUpserts.single().isFavorite).isTrue()
         assertThat(changes.albumUpserts.single().title).isEqualTo("New album")
-        assertThat(changes.deletedAlbumIds).containsExactly("old album|old artist")
+        assertThat(changes.deletedAlbumIds).containsExactly(
+            albumGroupingKey("Old album", null, "Old artist"),
+        )
         assertThat(changes.artistUpserts.single().name).isEqualTo("New artist")
-        assertThat(changes.deletedArtistIds).containsExactly("old artist")
+        assertThat(changes.deletedArtistIds).containsExactly(artistGroupingKey("Old artist"))
     }
 
     @Test
@@ -92,7 +96,9 @@ class LibrarySyncPlannerTest {
 
         assertThat(changes.deletedSongIds).containsExactly("media:2", "media:3")
         assertThat(changes.albumUpserts.single().songCount).isEqualTo(1)
-        assertThat(changes.deletedAlbumIds).containsExactly("other|artist")
+        assertThat(changes.deletedAlbumIds).containsExactly(
+            albumGroupingKey("Other", null, "Artist"),
+        )
         assertThat(changes.artistUpserts.single().songCount).isEqualTo(1)
     }
 
@@ -144,7 +150,10 @@ class LibrarySyncPlannerTest {
         )
 
         assertThat(albums.map(AlbumEntity::id))
-            .containsExactly("shared|artist a", "shared|artist b")
+            .containsExactly(
+                albumGroupingKey("Shared", null, "Artist A"),
+                albumGroupingKey("Shared", null, "Artist B"),
+            )
     }
 
     @Test

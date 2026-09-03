@@ -1,6 +1,5 @@
 package com.libreplayer.ui.screens
 
-import android.net.Uri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,6 +24,9 @@ import com.libreplayer.data.repository.LibraryScreenState
 import com.libreplayer.data.repository.PlaylistSong
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.UserPlaylist
+import com.libreplayer.library.semantics.albumBrowseSongs
+import com.libreplayer.library.semantics.artistBrowseAlbums
+import com.libreplayer.library.semantics.artistBrowseSongs
 import com.libreplayer.ui.components.AlbumRow
 import com.libreplayer.ui.components.ArtistRow
 import com.libreplayer.ui.components.DividerItem
@@ -160,9 +162,9 @@ fun AlbumDetailScreen(
     playlists: List<UserPlaylist>,
     onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
-    val decodedId = Uri.decode(albumId)
-    val songs = libraryState.songs.filter { albumKey(it) == decodedId }
-    val album = libraryState.albums.firstOrNull { it.id == decodedId }
+    // Navigation has already decoded String route arguments exactly once.
+    val songs = albumBrowseSongs(libraryState.songs, albumId)
+    val album = libraryState.albums.firstOrNull { it.id == albumId }
     DetailSongsScreen(
         title = album?.title ?: "Album",
         subtitle = album?.artist ?: "${songs.size} songs",
@@ -195,11 +197,10 @@ fun ArtistDetailScreen(
     playlists: List<UserPlaylist>,
     onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
-    val decodedId = Uri.decode(artistId)
-    val songs = libraryState.songs.filter { artistKey(it) == decodedId }
-    val albumIds = songs.map(::albumKey).toSet()
-    val albums = libraryState.albums.filter { it.id in albumIds }
-    val artist = libraryState.artists.firstOrNull { it.id == decodedId }
+    // Navigation has already decoded String route arguments exactly once.
+    val songs = artistBrowseSongs(libraryState.songs, artistId)
+    val albums = artistBrowseAlbums(libraryState.albums, songs)
+    val artist = libraryState.artists.firstOrNull { it.id == artistId }
 
     ArtistCollectionScreen(
         title = artist?.name ?: "Artist",

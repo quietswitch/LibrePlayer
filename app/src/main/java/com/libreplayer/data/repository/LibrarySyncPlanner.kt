@@ -92,7 +92,7 @@ internal fun buildArtists(songs: List<SongEntity>): List<ArtistEntity> =
                 songCount = groupedSongs.size,
                 totalDurationMs = groupedSongs.sumOf { it.durationMs },
                 artworkUri = groupedSongs.firstNotNullOfOrNull { it.artworkUri },
-                sortKey = key,
+                sortKey = resolvedTrackArtist(first.artist).normalizedGroupingKey(),
             )
         }
         .sortedBy { it.sortKey }

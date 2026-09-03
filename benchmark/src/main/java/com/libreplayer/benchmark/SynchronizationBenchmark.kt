@@ -109,10 +109,74 @@ class SynchronizationBenchmark {
         ))
     }
 
+    @Test
+    fun libraryBrowsingAuthority() {
+        val phase = InstrumentationRegistry.getArguments().getString("phase") ?: "initial"
+        val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+        val probeUri = Uri.parse("content://com.libreplayer.synchronization-probe")
+        val result = requireNotNull(resolver.call(probeUri, "q3.2-sync", null, null))
+
+        val expectedSongCount = if (phase == "initial") 10 else 9
+        val expectedArtistASongs = if (phase == "initial") 6 else 5
+        val expectedBetaSongs = if (phase == "initial") 3 else 2
+        check(phase == "initial" || phase == "removed") { "Unsupported Q3.2 phase: $phase" }
+        check(result.getInt("q32SongCount") == expectedSongCount)
+        check(result.getInt("q32AlbumCount") == 6)
+        check(result.getInt("q32ArtistCount") == 5)
+        check(result.getBoolean("q32AlbumCountParity"))
+        check(result.getBoolean("q32ArtistCountParity"))
+        check(result.getBoolean("q32PersistedAggregateParity"))
+
+        val songIds = requireNotNull(result.getStringArray("q32SongIds")).toList()
+        val songUris = requireNotNull(result.getStringArray("q32SongUris")).toList()
+        val songFiles = requireNotNull(result.getStringArray("q32SongFiles")).toList()
+        check(songIds.size == expectedSongCount && songIds.distinct().size == expectedSongCount)
+        check(songUris.size == expectedSongCount && songUris.distinct().size == expectedSongCount)
+        check(songIds.all { it.startsWith("media:") })
+        check(songFiles.contains("TwinA.mp3"))
+        check(songFiles.contains("TwinB.mp3") == (phase == "initial"))
+
+        val albumTitles = requireNotNull(result.getStringArray("q32AlbumTitles"))
+        val albumArtists = requireNotNull(result.getStringArray("q32AlbumArtists"))
+        val albumCounts = requireNotNull(result.getIntArray("q32AlbumSongCounts"))
+        val albumMembers = requireNotNull(result.getStringArray("q32AlbumMemberFiles"))
+        val alphaA = albumIndex(albumTitles, albumArtists, "Album Alpha", "Artist A")
+        val alphaB = albumIndex(albumTitles, albumArtists, "Album Alpha", "Artist B")
+        val betaA = albumIndex(albumTitles, albumArtists, "Album Beta", "Artist A")
+        check(alphaA != alphaB)
+        check(albumCounts[alphaA] == 3)
+        check(albumMembers[alphaA].split(FILE_SEPARATOR).toSet() == setOf("AlphaA1.mp3", "AlphaA2.mp3", "AlphaA3.mp3"))
+        check(albumCounts[alphaB] == 1 && albumMembers[alphaB] == "AlphaB1.mp3")
+        check(albumCounts[betaA] == expectedBetaSongs)
+
+        val artistNames = requireNotNull(result.getStringArray("q32ArtistNames"))
+        val artistCounts = requireNotNull(result.getIntArray("q32ArtistSongCounts"))
+        val artistMembers = requireNotNull(result.getStringArray("q32ArtistMemberFiles"))
+        val artistA = artistNames.indexOf("Artist A")
+        check(artistA >= 0 && artistCounts[artistA] == expectedArtistASongs)
+        check(artistMembers[artistA].split(FILE_SEPARATOR).size == expectedArtistASongs)
+        check(artistNames.contains("R.E.M.") && artistNames.contains("REM"))
+
+        check(result.getString("q32SelectedId") == result.getString("q32SelectedMediaId"))
+        check(result.getString("q32SelectedUri") == result.getString("q32SelectedMediaUri"))
+        check(result.getString("q32SpecialAlbumKey") == result.getString("q32SpecialRouteArgument"))
+    }
+
+    private fun albumIndex(
+        titles: Array<String>,
+        artists: Array<String>,
+        title: String,
+        artist: String,
+    ): Int {
+        val matches = titles.indices.filter { index -> titles[index] == title && artists[index] == artist }
+        return matches.single()
+    }
+
     private fun requireArgument(arguments: Bundle, name: String): String =
         requireNotNull(arguments.getString(name)) { "Missing instrumentation argument: $name" }
 
     private companion object {
         const val PACKAGE_NAME = "com.libreplayer"
+        const val FILE_SEPARATOR = "\u001F"
     }
 }

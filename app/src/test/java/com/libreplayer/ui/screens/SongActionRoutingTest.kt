@@ -4,6 +4,8 @@ import com.google.common.truth.Truth.assertThat
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.SongSourceType
 import com.libreplayer.data.repository.UserPlaylist
+import com.libreplayer.library.semantics.albumBrowseGroupId
+import com.libreplayer.library.semantics.artistBrowseGroupId
 import org.junit.Test
 
 class SongActionRoutingTest {
@@ -19,8 +21,8 @@ class SongActionRoutingTest {
         routeOpenArtist(song) { artistDestination = it }
 
         assertThat(queuedSong).isSameInstanceAs(song)
-        assertThat(albumDestination).isEqualTo("album|artist")
-        assertThat(artistDestination).isEqualTo("artist")
+        assertThat(albumDestination).isEqualTo(song.albumBrowseGroupId())
+        assertThat(artistDestination).isEqualTo(song.artistBrowseGroupId())
     }
 
     @Test

@@ -45,7 +45,7 @@ internal fun resolvedAlbumTitle(album: String?): String =
     album?.takeIf(String::isNotBlank) ?: UNKNOWN_ALBUM
 
 internal fun artistGroupingKey(trackArtist: String?): String =
-    resolvedTrackArtist(trackArtist).normalizedGroupingKey()
+    "artist:${trackArtist.groupingComponent()}"
 
 internal fun albumGroupingArtist(albumArtist: String?, trackArtist: String?): String? =
     albumArtist?.takeIf(String::isNotBlank) ?: trackArtist?.takeIf(String::isNotBlank)
@@ -55,7 +55,16 @@ internal fun albumGroupingKey(
     albumArtist: String?,
     trackArtist: String?,
 ): String =
-    "${resolvedAlbumTitle(album).normalizedGroupingKey()}|" +
-        (albumGroupingArtist(albumArtist, trackArtist) ?: UNKNOWN_ARTIST).normalizedGroupingKey()
+    "album:${album.groupingComponent()}|" +
+        "artist:${albumGroupingArtist(albumArtist, trackArtist).groupingComponent()}"
 
 internal fun String.normalizedGroupingKey(): String = trim().lowercase(Locale.US)
+
+/** Length-prefixing makes tuple identity collision-free even when metadata contains separators. */
+private fun String?.groupingComponent(): String {
+    val normalized = this
+        ?.takeIf(String::isNotBlank)
+        ?.normalizedGroupingKey()
+        ?: return "missing"
+    return "value:${normalized.length}:$normalized"
+}

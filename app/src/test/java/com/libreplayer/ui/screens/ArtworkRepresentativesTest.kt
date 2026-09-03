@@ -5,6 +5,8 @@ import com.libreplayer.data.repository.Album
 import com.libreplayer.data.repository.Artist
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.SongSourceType
+import com.libreplayer.library.semantics.albumBrowseGroupId
+import com.libreplayer.library.semantics.artistBrowseGroupId
 import org.junit.Test
 
 class ArtworkRepresentativesTest {
@@ -32,7 +34,7 @@ class ArtworkRepresentativesTest {
         )
 
         val albums = enrichAlbumsWithArtwork(
-            albums = listOf(Album("album|artist", "Album", "Artist", 2, 480_000L, null)),
+            albums = listOf(Album(songs.first().albumBrowseGroupId(), "Album", "Artist", 2, 480_000L, null)),
             songs = songs,
         )
 
@@ -55,7 +57,7 @@ class ArtworkRepresentativesTest {
         )
 
         val albums = enrichAlbumsWithArtwork(
-            albums = listOf(Album("album|artist", "Album", "Artist", 1, 240_000L, null)),
+            albums = listOf(Album(songs.first().albumBrowseGroupId(), "Album", "Artist", 1, 240_000L, null)),
             songs = songs,
         )
 
@@ -87,7 +89,7 @@ class ArtworkRepresentativesTest {
         )
 
         val artists = enrichArtistsWithArtwork(
-            artists = listOf(Artist("artist", "Artist", 2, 480_000L, null)),
+            artists = listOf(Artist(songs.first().artistBrowseGroupId(), "Artist", 2, 480_000L, null)),
             songs = songs,
         )
 

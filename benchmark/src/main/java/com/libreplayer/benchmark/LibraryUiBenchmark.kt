@@ -8,7 +8,9 @@ import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
@@ -57,6 +59,49 @@ class LibraryUiBenchmark {
         }
         check(device.hasObject(By.textStartsWith("Album "))) {
             "Albums scroll did not leave fixture album content visible"
+        }
+    }
+
+    @Test
+    fun albumsAndArtistsProjectionSmoke() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        device.executeShellCommand("logcat -c")
+        device.executeShellCommand("am force-stop $TARGET_PACKAGE")
+        device.executeShellCommand("am start -W -n $TARGET_PACKAGE/com.libreplayer.app.MainActivity")
+
+        requireNotNull(device.wait(Until.findObject(By.text(SONGS_TITLE)), CONTENT_TIMEOUT_MS)) {
+            "Songs did not reach a stable state"
+        }
+        device.wait(Until.gone(By.text(UPDATING_LIBRARY_TITLE)), REFRESH_SETTLE_TIMEOUT_MS)
+
+        requireNotNull(device.wait(Until.findObject(By.text(ALBUMS_TITLE)), CONTENT_TIMEOUT_MS)) {
+            "Albums navigation item was not available"
+        }.click()
+        requireNotNull(device.wait(Until.findObject(By.text(FIRST_ALBUM_TITLE)), CONTENT_TIMEOUT_MS)) {
+            "Albums projection did not expose canonical MEDIUM content"
+        }
+        repeat(PROJECTION_SMOKE_SCROLL_GESTURES) { device.humanScrollDown() }
+        check(device.hasObject(By.textStartsWith("Album "))) {
+            "Albums projection did not remain populated after scrolling"
+        }
+
+        requireNotNull(device.wait(Until.findObject(By.text(ARTISTS_TITLE)), CONTENT_TIMEOUT_MS)) {
+            "Artists navigation item was not available"
+        }.click()
+        check(device.wait(Until.hasObject(By.textStartsWith(ARTIST_PREFIX)), CONTENT_TIMEOUT_MS)) {
+            "Artists projection did not expose canonical MEDIUM content"
+        }
+        repeat(PROJECTION_SMOKE_SCROLL_GESTURES) { device.humanScrollDown() }
+        check(device.hasObject(By.textStartsWith(ARTIST_PREFIX))) {
+            "Artists projection did not remain populated after scrolling"
+        }
+
+        val logs = device.executeShellCommand("logcat -d -v brief")
+        check("Key \"" !in logs || "was already used" !in logs) {
+            "Compose reported a duplicate lazy-list key"
+        }
+        check("FATAL EXCEPTION" !in logs || TARGET_PACKAGE !in logs) {
+            "LibrePlayer crashed during the projection smoke"
         }
     }
 
@@ -119,10 +164,14 @@ class LibraryUiBenchmark {
     }
 
     private fun MacrobenchmarkScope.humanScrollDown() {
-        val x = device.displayWidth / 2
-        val startY = (device.displayHeight * 0.78f).toInt()
-        val endY = (device.displayHeight * 0.31f).toInt()
-        check(device.swipe(x, startY, x, endY, SWIPE_STEPS)) {
+        device.humanScrollDown()
+    }
+
+    private fun UiDevice.humanScrollDown() {
+        val x = displayWidth / 2
+        val startY = (displayHeight * 0.78f).toInt()
+        val endY = (displayHeight * 0.31f).toInt()
+        check(swipe(x, startY, x, endY, SWIPE_STEPS)) {
             "Normalized scroll gesture injection failed"
         }
     }
@@ -139,6 +188,7 @@ class LibraryUiBenchmark {
     private companion object {
         const val TARGET_PACKAGE = "com.libreplayer"
         const val SCROLL_ITERATIONS = 5
+        const val PROJECTION_SMOKE_SCROLL_GESTURES = 2
         const val SEARCH_ITERATIONS = 15
         const val RESUME_ITERATIONS = 20
         const val SCROLL_GESTURES = 6
@@ -147,6 +197,8 @@ class LibraryUiBenchmark {
         const val REFRESH_SETTLE_TIMEOUT_MS = 30_000L
         const val SONGS_TITLE = "Songs"
         const val ALBUMS_TITLE = "Albums"
+        const val ARTISTS_TITLE = "Artists"
+        const val ARTIST_PREFIX = "Artist "
         const val SEARCH_DESCRIPTION = "Search library"
         const val SEARCH_EMPTY_TITLE = "Search your library"
         const val FIRST_SONG_TITLE = "Duplicate Display Metadata"
