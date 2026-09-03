@@ -271,7 +271,7 @@ internal fun SortMenu(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            text = option.name.lowercase().replaceFirstChar { it.titlecase(Locale.US) },
+                            text = option.displayLabel(),
                             fontWeight = if (option == selected) FontWeight.SemiBold else FontWeight.Normal,
                         )
                     },
@@ -321,3 +321,12 @@ internal fun routeOpenArtist(
 }
 
 private fun String.normalized(): String = trim().lowercase(Locale.US)
+
+private fun LibrarySortOption.displayLabel(): String =
+    when (this) {
+        LibrarySortOption.TITLE -> "Title"
+        LibrarySortOption.ARTIST -> "Artist"
+        LibrarySortOption.ALBUM -> "Album"
+        LibrarySortOption.DURATION -> "Duration"
+        LibrarySortOption.DATE_ADDED -> "Date added"
+    }

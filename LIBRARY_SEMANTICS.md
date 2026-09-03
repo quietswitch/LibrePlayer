@@ -1,6 +1,6 @@
 # LibrePlayer Library Semantics
 
-This document is the Q3.1 authority for local-library identity and metadata and the Q3.2 authority for browse-group membership. It describes the current Room schema (version 1), ingestion, and browsing behavior. It does not introduce a schema migration.
+This document is the Q3.1 authority for local-library identity and metadata, the Q3.2 authority for browse-group membership, and the Q3.3 authority for sorting and local search. It describes the current Room schema (version 1), ingestion, browsing, ordering, and filtering behavior. It does not introduce a schema migration.
 
 ## Physical and logical song identity
 
@@ -39,7 +39,7 @@ Album and artist IDs are deterministic grouping keys. Each normalized metadata c
 
 ## Track, disc, year, genre, and folder semantics
 
-MediaStore's encoded track field is decoded as `disc * 1000 + track`. Only positive components are retained: `0` is missing, `1000` means disc 1 with unknown track, and `2007` means disc 2 track 7. Retriever ordinals accept either `n` or `n/total`; malformed, zero, and negative values remain null. Duplicate track numbers are allowed. Library ordering is disc, then track, with title/ID tie-break behavior owned by the existing sort layer; numbering never defines song identity.
+MediaStore's encoded track field is decoded as `disc * 1000 + track`. Only positive components are retained: `0` is missing, `1000` means disc 1 with unknown track, and `2007` means disc 2 track 7. Retriever ordinals accept either `n` or `n/total`; malformed, zero, and negative values remain null. Duplicate track numbers are allowed. Q3.3 album-detail ordering is numeric disc, then numeric track, then normalized title and Song ID; numbering never defines song identity.
 
 The core model stores year precision only. A positive four-digit-or-less integer is accepted; a full date is not truncated or inferred. Genre is not retained in the core library row. Audio Details may display retriever-provided album artist and genre as raw presentation metadata, but those fields do not currently affect grouping or identity. Multi-value genre parsing is therefore deferred.
 
@@ -56,7 +56,7 @@ Rescans upsert by song ID and preserve the favorite bit for an existing ID. Remo
 
 ## Browsing and grouping semantics
 
-Group membership is Q3.2 authority. Comprehensive group and song ordering remains Q3.3 authority; Q3.2 preserves the existing ordering behavior where a deterministic list is required.
+Group membership is Q3.2 authority. Q3.3 controls only the presentation order of those accepted groups and occurrences and the matching subset shown by search.
 
 ### Songs
 
@@ -85,6 +85,73 @@ Room song, album, and artist rows are updated inside the existing synchronizatio
 The single Song collector derives both browse projections on a background dispatcher only when that Song snapshot emits. Settings changes, playlist changes, playback-position ticks, and Compose recomposition do not rerun grouping. A later normal synchronization updates its persisted aggregate cache through the existing transaction and causes the Song-backed browse projection to refresh when membership changes, without changing an active playback media ID.
 
 Folders and genres have no current browse surfaces. Q3.1's source-relative folder definition remains available for later browsing work. Genre remains Audio Details presentation metadata and is not a Q3.2 group. Favorites, playlists, and search are adjacent existing surfaces; Q3.2 does not redesign them, and Q3.3 owns comprehensive sorting and search authority.
+
+## Sorting and search semantics
+
+Q3.3 consumes Q3.1 Song identity and Q3.2 Album/Artist identities and memberships. Sorting changes presentation order; search filters the current presentation. Neither operation rewrites stored metadata, collapses duplicate occurrences, changes group membership, or creates playback identity.
+
+### Deterministic ordering
+
+Text ordering trims surrounding whitespace and lowercases with `Locale.ROOT`. It retains punctuation, articles, accents, and internal whitespace; display text itself is never rewritten. Every comparator ends in the relevant semantic identity, so equal visible metadata never relies on repository or collection input order.
+
+The Songs surface exposes one persisted sort preference and no direction toggle:
+
+- Title: resolved title, resolved artist, resolved album, then Song ID; ascending.
+- Artist: resolved artist, resolved album, resolved title, then Song ID; ascending.
+- Album: resolved album, resolved artist, positive disc number, positive track number, resolved title, then Song ID; ascending. Missing/non-positive ordinals sort after valid ordinals.
+- Duration: positive duration descending, then title, artist, album, and Song ID ascending. Missing/non-positive duration sorts last.
+- Date added: positive timestamp descending, then title, artist, album, and Song ID ascending. Missing/non-positive timestamp sorts last.
+
+Thus descending modes reverse only their primary numeric field; deterministic textual and identity ties remain ascending. The same Song preference orders Favorites and artist-detail Songs. Artist detail filters the already ordered Song list, and its Album rows filter the already ordered top-level Album list; it does not maintain independent comparators.
+
+Albums have one current default order and no user-selectable Album sort mode: normalized title, resolved grouping-artist presentation, then full semantic Album ID. Artists likewise have one default order: normalized display name, then semantic Artist ID. `The` and punctuation are not stripped, so `Beatles` and `The Beatles`, and `R.E.M.` and `REM`, remain distinct and follow ordinary deterministic lexical ordering.
+
+Album detail does not inherit the global Song preference. Its members always sort by positive disc number, positive track number, normalized resolved title, then Song ID. Valid ordinals precede missing/non-positive ordinals at each numeric level. Track 2 therefore precedes Track 10 numerically; duplicate ordinals and duplicate visible metadata remain deterministic independent occurrences.
+
+The Song sort preference is stored in the existing Settings DataStore as the enum name. Every supported value survives recreation and restart; a missing, old, or invalid value safely selects Title. This intentionally shared preference controls the current Song-derived surfaces. Changing it only recomputes an in-memory presentation and neither rescans the library nor mutates Room.
+
+### Local search
+
+Search is global across the local library and presents separate Song, Album, and Artist result sections. It is filtering, not ranking or identity resolution. The query is trimmed and lowercased with `Locale.ROOT`; punctuation and internal spaces are preserved. Matching is a case-insensitive contiguous substring test. There is no token splitting, stemming, transliteration, fuzzy matching, typo correction, scoring, network access, or search index.
+
+The accepted fields are:
+
+- Song: resolved displayed title, resolved artist, resolved album, and display filename.
+- Album: accepted Album presentation title and non-missing grouping artist.
+- Artist: accepted Artist display name.
+
+Private paths, source/internal IDs, content URIs, and debug metadata are not searched. Presentation fallbacks participate for Songs, so a missing artist or album can match `Unknown artist` or `Unknown album`; those matches retain a missing-value identity distinct from literal user-authored fallback-like metadata. Filename fallback and filename search do not replace Song ID.
+
+Each result retains its original `Song.id` and content URI, `Album.id`, or `Artist.id`. Song rows are keyed by occurrence ID and playback receives the exact filtered Song list plus selected occurrence index. Albums and Artists navigate by their full semantic IDs. Duplicate physical occurrences are never collapsed.
+
+Search filters the already ordered Song, Album, and Artist lists and therefore preserves the active surface order without introducing a competing rank. Changing sort while a query is active changes order but not matching membership or query text. Changing the query changes membership but preserves the persisted sort preference.
+
+A blank normalized query produces the established non-search state (`Search your library`) rather than “match everything.” Clearing restores the full current browse membership under the active sort after returning from search. Query state belongs to `LibraryViewModel`: it survives ordinary configuration recreation and navigation while that ViewModel remains alive, is not persisted across process death, and remains until explicitly edited or cleared.
+
+Query updates use a single `StateFlow` with no debounce and no child coroutine per keystroke. Each evaluation is synchronous on the background projection dispatcher, so a rapid replacement settles on the latest state and cannot be overwritten later by an older asynchronous job. The ordered current catalog is shared between catalog and search presentation; there is no duplicate Song collector. Search recomputes only when the query, current Song snapshot, or active Song sort changes—not for playlist, favorite, playback-position, or unrelated metadata emissions. A synchronization refresh therefore updates an active query directly from the same current Song authority used by Q3.2, with coherent group counts and no secondary cache/index rebuild.
+
+For `n` Songs, the accepted implementation sorts in approximately `O(n log n)` and filters in `O(n)` per query evaluation; sorting plus filtering does not perform a Room query or nested full-library scan per row. Canonical 2,000-song UI authority remains bounded here; huge-library scale remains later Q3 work.
+
+## Q3.3 coverage matrix
+
+| Sort/search behavior | Authority | Classification |
+| --- | --- | --- |
+| All five exposed Song modes | Exact primary direction plus ascending deterministic ties and Song ID | Correct and covered |
+| Equal/case/whitespace Song metadata | `Locale.ROOT` presentation keys; occurrence ID final tie | Corrected and covered |
+| Album same-title ordering | Title, grouping artist, full Album ID | Corrected and covered |
+| Artist punctuation/articles/unknown labels | Display key plus Artist ID; no stripping or merge | Corrected and covered |
+| Album detail multidisc/2-vs-10/missing/duplicate ordinals | Numeric positive ordinals, missing last, title/ID tie | Corrected and covered |
+| Sort persistence and invalid value | Existing DataStore enum; Title fallback | Correct and covered |
+| Song/Album/Artist field scope | Explicit presentation fields; no path/ID/URI | Corrected and covered |
+| Locale/case/punctuation/multi-word matching | `Locale.ROOT` contiguous substring | Corrected and covered |
+| Missing versus literal Unknown search | Same searchable presentation allowed; identities remain distinct | Corrected and covered |
+| Duplicate occurrence search results | Both Song IDs/content URIs retained | Correct and covered |
+| Blank/no-match/clear | Non-search, empty result, full current browse after clear | Correct and covered |
+| Rapid replacement | Single StateFlow; latest query wins | Correct and covered |
+| Search plus sort | Membership retained; active order changes | Correct and covered |
+| Active-query refresh | Same observable current Song snapshot; removed result disappears | Corrected and covered |
+| Search-to-playback | Exact selected Song ID and content URI | Correct and covered |
+| Fuzzy, typo-tolerant, transliterated search | Not a current product feature | Deferred |
 
 ## Q3.2 coverage matrix
 

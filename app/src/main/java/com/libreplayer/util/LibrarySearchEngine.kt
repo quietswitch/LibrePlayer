@@ -4,6 +4,7 @@ import com.libreplayer.data.repository.Album
 import com.libreplayer.data.repository.Artist
 import com.libreplayer.data.repository.SearchResult
 import com.libreplayer.data.repository.Song
+import com.libreplayer.library.semantics.normalizedSortKey
 
 object LibrarySearchEngine {
     fun search(
@@ -12,23 +13,23 @@ object LibrarySearchEngine {
         albums: List<Album>,
         artists: List<Artist>,
     ): SearchResult {
-        val normalized = query.trim().lowercase()
-        if (normalized.isBlank()) return SearchResult()
+        val normalizedQuery = normalizeSearchQuery(query)
+        if (normalizedQuery.isBlank()) return SearchResult()
 
-        fun String?.matches(): Boolean = !this.isNullOrBlank() && lowercase().contains(normalized)
+        fun String.matches(): Boolean = normalizedSortKey().contains(normalizedQuery)
 
         val matchedSongs = songs.filter { song ->
-            song.resolvedTitle.lowercase().contains(normalized) ||
-                song.artist.matches() ||
-                song.album.matches() ||
-                song.displayName.lowercase().contains(normalized)
+            song.resolvedTitle.matches() ||
+                song.resolvedArtist.matches() ||
+                song.resolvedAlbum.matches() ||
+                song.displayName.matches()
         }
         val matchedAlbums = albums.filter { album ->
-            album.title.lowercase().contains(normalized) ||
-                album.artist.matches()
+            album.title.matches() ||
+                album.artist?.matches() == true
         }
         val matchedArtists = artists.filter { artist ->
-            artist.name.lowercase().contains(normalized)
+            artist.name.matches()
         }
 
         return SearchResult(
@@ -37,5 +38,6 @@ object LibrarySearchEngine {
             artists = matchedArtists,
         )
     }
-}
 
+    internal fun normalizeSearchQuery(query: String): String = query.normalizedSortKey()
+}

@@ -31,30 +31,32 @@ internal fun artistBrowseAlbums(
 
 /** Builds one coherent browse projection from a single observable song snapshot. */
 internal fun buildBrowseAlbums(songs: List<Song>): List<Album> =
-    songs.groupBy(Song::albumBrowseGroupId)
-        .map { (id, members) ->
-            val first = members.first()
-            Album(
-                id = id,
-                title = resolvedAlbumTitle(first.album),
-                artist = albumGroupingArtist(albumArtist = null, trackArtist = first.artist),
-                songCount = members.size,
-                totalDurationMs = members.sumOf(Song::durationMs),
-                artworkUri = members.firstNotNullOfOrNull(Song::artworkUri),
-            )
-        }
-        .sortedBy { album -> album.title.normalizedGroupingKey() }
+    sortAlbums(
+        songs.groupBy(Song::albumBrowseGroupId)
+            .map { (id, members) ->
+                val first = members.first()
+                Album(
+                    id = id,
+                    title = resolvedAlbumTitle(first.album),
+                    artist = albumGroupingArtist(albumArtist = null, trackArtist = first.artist),
+                    songCount = members.size,
+                    totalDurationMs = members.sumOf(Song::durationMs),
+                    artworkUri = members.firstNotNullOfOrNull(Song::artworkUri),
+                )
+            },
+    )
 
 internal fun buildBrowseArtists(songs: List<Song>): List<Artist> =
-    songs.groupBy(Song::artistBrowseGroupId)
-        .map { (id, members) ->
-            val first = members.first()
-            Artist(
-                id = id,
-                name = resolvedTrackArtist(first.artist),
-                songCount = members.size,
-                totalDurationMs = members.sumOf(Song::durationMs),
-                artworkUri = members.firstNotNullOfOrNull(Song::artworkUri),
-            )
-        }
-        .sortedBy { artist -> artist.name.normalizedGroupingKey() }
+    sortArtists(
+        songs.groupBy(Song::artistBrowseGroupId)
+            .map { (id, members) ->
+                val first = members.first()
+                Artist(
+                    id = id,
+                    name = resolvedTrackArtist(first.artist),
+                    songCount = members.size,
+                    totalDurationMs = members.sumOf(Song::durationMs),
+                    artworkUri = members.firstNotNullOfOrNull(Song::artworkUri),
+                )
+            },
+    )

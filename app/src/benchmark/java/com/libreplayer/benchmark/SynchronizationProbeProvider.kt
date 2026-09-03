@@ -12,6 +12,7 @@ import androidx.media3.common.MediaItem
 import com.libreplayer.app.LibrePlayerApplication
 import com.libreplayer.data.repository.Album
 import com.libreplayer.data.repository.Artist
+import com.libreplayer.data.repository.LibrarySortOption
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.SongSourceType
 import com.libreplayer.data.repository.asModel
@@ -21,7 +22,10 @@ import com.libreplayer.library.semantics.artistBrowseGroupId
 import com.libreplayer.library.semantics.artistBrowseSongs
 import com.libreplayer.library.semantics.buildBrowseAlbums
 import com.libreplayer.library.semantics.buildBrowseArtists
+import com.libreplayer.library.semantics.sortAlbumTracks
+import com.libreplayer.library.semantics.sortSongs
 import com.libreplayer.navigation.AppRoute
+import com.libreplayer.util.LibrarySearchEngine
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -39,7 +43,9 @@ class SynchronizationProbeProvider : ContentProvider() {
             METHOD_REBUILD -> traced { repository.rebuildLibrary() }
             METHOD_Q31_SYNC -> traced { repository.rescanLibrary() }
             METHOD_Q32_SYNC -> traced { repository.rescanLibrary() }
+            METHOD_Q33_SYNC -> traced { repository.rescanLibrary() }
             METHOD_CATALOG -> Unit
+            METHOD_Q33_SELECTION -> Unit
             else -> error("Unsupported synchronization probe method: $method")
         }
         val elapsedNanos = SystemClock.elapsedRealtimeNanos() - startedNanos
@@ -55,6 +61,8 @@ class SynchronizationProbeProvider : ContentProvider() {
                 allArtists = container.database.artistDao().getAllArtists().map { it.asModel() },
                 elapsedNanos = elapsedNanos,
             )
+            METHOD_Q33_SYNC -> q33CatalogBundle(songs, elapsedNanos)
+            METHOD_Q33_SELECTION -> q33SelectionBundle(container.playbackConnection.uiState.value)
             else -> catalogBundle(songs, elapsedNanos, arg)
         }
     }
@@ -196,6 +204,65 @@ class SynchronizationProbeProvider : ContentProvider() {
         }
     }
 
+    /** Exact Q3.3 projections from the real synchronized repository snapshot. */
+    private fun q33CatalogBundle(allSongs: List<Song>, elapsedNanos: Long): Bundle {
+        val songs = allSongs.filter { song ->
+            song.sourceType == SongSourceType.MEDIA_STORE &&
+                song.relativePath?.replace('\\', '/')?.startsWith(Q32_RELATIVE_ROOT) == true
+        }
+        val titleSongs = sortSongs(songs, LibrarySortOption.TITLE)
+        val albumSongs = sortSongs(songs, LibrarySortOption.ALBUM)
+        val albums = buildBrowseAlbums(songs)
+        val artists = buildBrowseArtists(songs)
+        val alphaAlbum = albums.single { it.title == "Album Alpha" && it.artist == "Artist A" }
+        val alphaTracks = sortAlbumTracks(albumBrowseSongs(songs, alphaAlbum.id))
+        val titleSearch = LibrarySearchEngine.search("alpha a", titleSongs, albums, artists)
+        val artistSearch = LibrarySearchEngine.search("artist b", titleSongs, albums, artists)
+        val albumSearch = LibrarySearchEngine.search("album beta", titleSongs, albums, artists)
+        val twinSearch = LibrarySearchEngine.search("twin", titleSongs, albums, artists)
+        val noMatch = LibrarySearchEngine.search("q3-3-no-match", titleSongs, albums, artists)
+        val blank = LibrarySearchEngine.search("   ", titleSongs, albums, artists)
+        val selected = titleSongs.single { it.displayName == Q32_SELECTED_FILE }
+        val selectedMediaItem = selected.toProductionMediaItem()
+
+        return Bundle().apply {
+            putLong(KEY_ELAPSED_NANOS, elapsedNanos)
+            putInt(KEY_Q33_SONG_COUNT, songs.size)
+            putStringArray(KEY_Q33_TITLE_FILES, titleSongs.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q33_TITLE_IDS, titleSongs.map(Song::id).toTypedArray())
+            putStringArray(KEY_Q33_ALBUM_SORT_FILES, albumSongs.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q33_ALBUM_SORT_IDS, albumSongs.map(Song::id).toTypedArray())
+            putStringArray(KEY_Q33_ALBUM_IDS, albums.map(Album::id).toTypedArray())
+            putStringArray(KEY_Q33_ALBUM_TITLES, albums.map(Album::title).toTypedArray())
+            putStringArray(KEY_Q33_ALBUM_ARTISTS, albums.map { it.artist.orEmpty() }.toTypedArray())
+            putStringArray(KEY_Q33_ARTIST_IDS, artists.map(Artist::id).toTypedArray())
+            putStringArray(KEY_Q33_ARTIST_NAMES, artists.map(Artist::name).toTypedArray())
+            putStringArray(KEY_Q33_ALPHA_TRACK_FILES, alphaTracks.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q33_ALPHA_TRACK_IDS, alphaTracks.map(Song::id).toTypedArray())
+            putStringArray(KEY_Q33_TITLE_SEARCH_FILES, titleSearch.songs.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q33_ARTIST_SEARCH_FILES, artistSearch.songs.map(Song::displayName).toTypedArray())
+            putInt(KEY_Q33_ARTIST_SEARCH_ALBUMS, artistSearch.albums.size)
+            putInt(KEY_Q33_ARTIST_SEARCH_ARTISTS, artistSearch.artists.size)
+            putStringArray(KEY_Q33_ALBUM_SEARCH_FILES, albumSearch.songs.map(Song::displayName).toTypedArray())
+            putInt(KEY_Q33_ALBUM_SEARCH_ALBUMS, albumSearch.albums.size)
+            putStringArray(KEY_Q33_TWIN_FILES, twinSearch.songs.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q33_TWIN_IDS, twinSearch.songs.map(Song::id).toTypedArray())
+            putStringArray(KEY_Q33_TWIN_URIS, twinSearch.songs.map(Song::contentUri).toTypedArray())
+            putInt(KEY_Q33_NO_MATCH_TOTAL, noMatch.songs.size + noMatch.albums.size + noMatch.artists.size)
+            putInt(KEY_Q33_BLANK_TOTAL, blank.songs.size + blank.albums.size + blank.artists.size)
+            putString(KEY_Q33_SELECTED_ID, selected.id)
+            putString(KEY_Q33_SELECTED_URI, selected.contentUri)
+            putString(KEY_Q33_SELECTED_MEDIA_ID, selectedMediaItem.mediaId)
+            putString(KEY_Q33_SELECTED_MEDIA_URI, selectedMediaItem.localConfiguration?.uri?.toString())
+        }
+    }
+
+    private fun q33SelectionBundle(state: com.libreplayer.data.repository.PlaybackUiState): Bundle =
+        Bundle().apply {
+            putString(KEY_Q33_CURRENT_ID, state.currentSong?.id)
+            putString(KEY_Q33_CURRENT_URI, state.currentSong?.contentUri)
+        }
+
     private fun identityFingerprint(identities: List<String>): String {
         val digest = MessageDigest.getInstance("SHA-256")
         identities.forEach { identity ->
@@ -239,6 +306,8 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val METHOD_CATALOG = "catalog"
         const val METHOD_Q31_SYNC = "q3.1-sync"
         const val METHOD_Q32_SYNC = "q3.2-sync"
+        const val METHOD_Q33_SYNC = "q3.3-sync"
+        const val METHOD_Q33_SELECTION = "q3.3-selection"
         const val KEY_ELAPSED_NANOS = "elapsedNanos"
         const val KEY_FIXTURE_COUNT = "fixtureCount"
         const val KEY_UNIQUE_IDENTITIES = "uniqueIdentities"
@@ -283,6 +352,35 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val KEY_Q32_SELECTED_MEDIA_URI = "q32SelectedMediaUri"
         const val KEY_Q32_SPECIAL_ALBUM_KEY = "q32SpecialAlbumKey"
         const val KEY_Q32_SPECIAL_ROUTE_ARGUMENT = "q32SpecialRouteArgument"
+        const val KEY_Q33_SONG_COUNT = "q33SongCount"
+        const val KEY_Q33_TITLE_FILES = "q33TitleFiles"
+        const val KEY_Q33_TITLE_IDS = "q33TitleIds"
+        const val KEY_Q33_ALBUM_SORT_FILES = "q33AlbumSortFiles"
+        const val KEY_Q33_ALBUM_SORT_IDS = "q33AlbumSortIds"
+        const val KEY_Q33_ALBUM_IDS = "q33AlbumIds"
+        const val KEY_Q33_ALBUM_TITLES = "q33AlbumTitles"
+        const val KEY_Q33_ALBUM_ARTISTS = "q33AlbumArtists"
+        const val KEY_Q33_ARTIST_IDS = "q33ArtistIds"
+        const val KEY_Q33_ARTIST_NAMES = "q33ArtistNames"
+        const val KEY_Q33_ALPHA_TRACK_FILES = "q33AlphaTrackFiles"
+        const val KEY_Q33_ALPHA_TRACK_IDS = "q33AlphaTrackIds"
+        const val KEY_Q33_TITLE_SEARCH_FILES = "q33TitleSearchFiles"
+        const val KEY_Q33_ARTIST_SEARCH_FILES = "q33ArtistSearchFiles"
+        const val KEY_Q33_ARTIST_SEARCH_ALBUMS = "q33ArtistSearchAlbums"
+        const val KEY_Q33_ARTIST_SEARCH_ARTISTS = "q33ArtistSearchArtists"
+        const val KEY_Q33_ALBUM_SEARCH_FILES = "q33AlbumSearchFiles"
+        const val KEY_Q33_ALBUM_SEARCH_ALBUMS = "q33AlbumSearchAlbums"
+        const val KEY_Q33_TWIN_FILES = "q33TwinFiles"
+        const val KEY_Q33_TWIN_IDS = "q33TwinIds"
+        const val KEY_Q33_TWIN_URIS = "q33TwinUris"
+        const val KEY_Q33_NO_MATCH_TOTAL = "q33NoMatchTotal"
+        const val KEY_Q33_BLANK_TOTAL = "q33BlankTotal"
+        const val KEY_Q33_SELECTED_ID = "q33SelectedId"
+        const val KEY_Q33_SELECTED_URI = "q33SelectedUri"
+        const val KEY_Q33_SELECTED_MEDIA_ID = "q33SelectedMediaId"
+        const val KEY_Q33_SELECTED_MEDIA_URI = "q33SelectedMediaUri"
+        const val KEY_Q33_CURRENT_ID = "q33CurrentId"
+        const val KEY_Q33_CURRENT_URI = "q33CurrentUri"
         const val LOG_TAG = "LibrePlayerSyncProbe"
         private const val FIXTURE_RELATIVE_ROOT = "Music/LibrePlayerBenchmark/MEDIUM/"
         private const val Q31_RELATIVE_ROOT = "Music/LibrePlayerQ31/"

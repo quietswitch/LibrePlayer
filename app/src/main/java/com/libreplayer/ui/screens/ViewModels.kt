@@ -24,6 +24,7 @@ import com.libreplayer.data.repository.LibrarySyncState
 import com.libreplayer.media.playback.PlaybackConnection
 import com.libreplayer.library.semantics.buildBrowseAlbums
 import com.libreplayer.library.semantics.buildBrowseArtists
+import com.libreplayer.library.semantics.sortSongs
 import com.libreplayer.settings.SettingsRepository
 import com.libreplayer.util.LibrarySearchEngine
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +33,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 class LibraryViewModel(
     private val libraryRepository: LibraryRepository,
@@ -50,6 +52,10 @@ class LibraryViewModel(
         started = SharingStarted.WhileSubscribed(5_000L),
         initialValue = AppSettings(),
     )
+
+    private val sortOptionFlow = settings
+        .map { currentSettings -> currentSettings.defaultSortOption }
+        .distinctUntilChanged()
 
     private val browseFlow = libraryRepository.observeSongs()
         .map { songs ->
@@ -76,26 +82,54 @@ class LibraryViewModel(
         LibraryMetaSnapshot(favorites, recentlyPlayed, importedRoots, syncState)
     }
 
-    private val catalogPresentationFlow = combine(
+    private val orderedLibraryFlow = combine(
         browseFlow,
-        playlistRepository.observePlaylists(),
-        settings,
-    ) { browse, playlists, currentSettings ->
-        val sortedSongs = browse.songs.sortedWith(songComparator(currentSettings.defaultSortOption))
-        LibraryCatalogPresentation(
-            songs = sortedSongs,
+        sortOptionFlow,
+    ) { browse, sortOption ->
+        LibraryOrderedSnapshot(
+            songs = sortSongs(browse.songs, sortOption),
             albums = browse.albums,
             artists = browse.artists,
+        )
+    }.flowOn(Dispatchers.Default).shareIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000L),
+        replay = 1,
+    )
+
+    private val catalogPresentationFlow = combine(
+        orderedLibraryFlow,
+        playlistRepository.observePlaylists(),
+    ) { library, playlists ->
+        LibraryCatalogPresentation(
+            songs = library.songs,
+            albums = library.albums,
+            artists = library.artists,
             playlists = playlists,
+        )
+    }.flowOn(Dispatchers.Default)
+
+    private val searchPresentationFlow = combine(
+        orderedLibraryFlow,
+        searchQuery,
+    ) { library, query ->
+        LibrarySearchPresentation(
+            query = query,
+            result = LibrarySearchEngine.search(
+                query = query,
+                songs = library.songs,
+                albums = library.albums,
+                artists = library.artists,
+            ),
         )
     }.flowOn(Dispatchers.Default)
 
     private val metadataPresentationFlow = combine(
         metadataFlow,
-        settings,
-    ) { metadata, currentSettings ->
+        sortOptionFlow,
+    ) { metadata, sortOption ->
         LibraryMetaPresentation(
-            favorites = metadata.favorites.sortedWith(songComparator(currentSettings.defaultSortOption)),
+            favorites = sortSongs(metadata.favorites, sortOption),
             recentlyPlayed = metadata.recentlyPlayed,
             importedRoots = metadata.importedRoots,
             syncState = metadata.syncState,
@@ -105,14 +139,8 @@ class LibraryViewModel(
     val state: StateFlow<LibraryScreenState> = combine(
         catalogPresentationFlow,
         metadataPresentationFlow,
-        searchQuery,
-    ) { catalog, metadata, query ->
-        val searchResult = LibrarySearchEngine.search(
-            query = query,
-            songs = catalog.songs,
-            albums = catalog.albums,
-            artists = catalog.artists,
-        )
+        searchPresentationFlow,
+    ) { catalog, metadata, search ->
         LibraryScreenState(
             isLoading = metadata.syncState.isLoading,
             permissionRequired = metadata.syncState.permissionRequired,
@@ -123,8 +151,8 @@ class LibraryViewModel(
             playlists = catalog.playlists,
             favorites = metadata.favorites,
             recentlyPlayed = metadata.recentlyPlayed,
-            searchQuery = query,
-            searchResult = searchResult,
+            searchQuery = search.query,
+            searchResult = search.result,
             importedRoots = metadata.importedRoots,
         )
     }.flowOn(Dispatchers.Default).stateIn(
@@ -353,26 +381,13 @@ class SettingsViewModel(
     }
 }
 
-private fun songComparator(option: LibrarySortOption): Comparator<Song> =
-    when (option) {
-        LibrarySortOption.TITLE -> compareBy<Song> { it.resolvedTitle.normalized() }
-            .thenBy { it.resolvedArtist.normalized() }
-        LibrarySortOption.ARTIST -> compareBy<Song> { it.resolvedArtist.normalized() }
-            .thenBy { it.resolvedAlbum.normalized() }
-            .thenBy { it.resolvedTitle.normalized() }
-        LibrarySortOption.ALBUM -> compareBy<Song> { it.resolvedAlbum.normalized() }
-            .thenBy { it.discNumber ?: 0 }
-            .thenBy { it.trackNumber ?: Int.MAX_VALUE }
-            .thenBy { it.resolvedTitle.normalized() }
-        LibrarySortOption.DURATION -> compareByDescending<Song> { it.durationMs }
-            .thenBy { it.resolvedTitle.normalized() }
-        LibrarySortOption.DATE_ADDED -> compareByDescending<Song> { it.dateAddedEpochSeconds }
-            .thenBy { it.resolvedTitle.normalized() }
-    }
-
-private fun String.normalized(): String = trim().lowercase(Locale.US)
-
 private data class LibraryBrowseSnapshot(
+    val songs: List<Song>,
+    val albums: List<Album>,
+    val artists: List<Artist>,
+)
+
+private data class LibraryOrderedSnapshot(
     val songs: List<Song>,
     val albums: List<Album>,
     val artists: List<Artist>,
@@ -397,4 +412,9 @@ private data class LibraryMetaPresentation(
     val recentlyPlayed: List<Song>,
     val importedRoots: List<ImportedRoot>,
     val syncState: LibrarySyncState,
+)
+
+private data class LibrarySearchPresentation(
+    val query: String,
+    val result: com.libreplayer.data.repository.SearchResult,
 )

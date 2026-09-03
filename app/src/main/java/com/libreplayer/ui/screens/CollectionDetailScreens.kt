@@ -27,6 +27,7 @@ import com.libreplayer.data.repository.UserPlaylist
 import com.libreplayer.library.semantics.albumBrowseSongs
 import com.libreplayer.library.semantics.artistBrowseAlbums
 import com.libreplayer.library.semantics.artistBrowseSongs
+import com.libreplayer.library.semantics.sortAlbumTracks
 import com.libreplayer.ui.components.AlbumRow
 import com.libreplayer.ui.components.ArtistRow
 import com.libreplayer.ui.components.DividerItem
@@ -163,7 +164,9 @@ fun AlbumDetailScreen(
     onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
     // Navigation has already decoded String route arguments exactly once.
-    val songs = albumBrowseSongs(libraryState.songs, albumId)
+    val songs = remember(libraryState.songs, albumId) {
+        sortAlbumTracks(albumBrowseSongs(libraryState.songs, albumId))
+    }
     val album = libraryState.albums.firstOrNull { it.id == albumId }
     DetailSongsScreen(
         title = album?.title ?: "Album",
@@ -198,8 +201,12 @@ fun ArtistDetailScreen(
     onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
     // Navigation has already decoded String route arguments exactly once.
-    val songs = artistBrowseSongs(libraryState.songs, artistId)
-    val albums = artistBrowseAlbums(libraryState.albums, songs)
+    val songs = remember(libraryState.songs, artistId) {
+        artistBrowseSongs(libraryState.songs, artistId)
+    }
+    val albums = remember(libraryState.albums, songs) {
+        artistBrowseAlbums(libraryState.albums, songs)
+    }
     val artist = libraryState.artists.firstOrNull { it.id == artistId }
 
     ArtistCollectionScreen(

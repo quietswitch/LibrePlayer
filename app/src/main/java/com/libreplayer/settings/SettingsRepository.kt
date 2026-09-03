@@ -22,9 +22,7 @@ class SettingsRepository(private val context: Context) {
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.SYSTEM,
             showFileNamesWhenMetadataMissing = preferences[KEY_SHOW_FILE_NAMES] ?: true,
-            defaultSortOption = preferences[KEY_DEFAULT_SORT]
-                ?.let { runCatching { LibrarySortOption.valueOf(it) }.getOrNull() }
-                ?: LibrarySortOption.TITLE,
+            defaultSortOption = persistedLibrarySortOption(preferences[KEY_DEFAULT_SORT]),
         )
     }
 
@@ -46,3 +44,7 @@ class SettingsRepository(private val context: Context) {
         internal val KEY_DEFAULT_SORT = stringPreferencesKey("default_sort")
     }
 }
+
+internal fun persistedLibrarySortOption(value: String?): LibrarySortOption =
+    value?.let { runCatching { LibrarySortOption.valueOf(it) }.getOrNull() }
+        ?: LibrarySortOption.TITLE

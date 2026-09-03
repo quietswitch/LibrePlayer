@@ -106,6 +106,53 @@ class LibraryUiBenchmark {
     }
 
     @Test
+    fun sortingSearchProjectionSmoke() {
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        device.executeShellCommand("logcat -c")
+        device.executeShellCommand("am force-stop $TARGET_PACKAGE")
+        device.executeShellCommand("am start -W -n $TARGET_PACKAGE/com.libreplayer.app.MainActivity")
+
+        requireNotNull(device.wait(Until.findObject(By.text(SONGS_TITLE)), CONTENT_TIMEOUT_MS)) {
+            "Songs did not reach a stable state"
+        }
+        device.wait(Until.gone(By.text(UPDATING_LIBRARY_TITLE)), REFRESH_SETTLE_TIMEOUT_MS)
+        requireNotNull(device.findObject(By.desc(SORT_DESCRIPTION))).click()
+        requireNotNull(device.wait(Until.findObject(By.text("Title")), CONTENT_TIMEOUT_MS)).click()
+        requireNotNull(device.findObject(By.desc(SORT_DESCRIPTION))).click()
+        requireNotNull(device.wait(Until.findObject(By.text("Album")), CONTENT_TIMEOUT_MS)).click()
+        requireNotNull(device.findObject(By.desc(SEARCH_DESCRIPTION))).click()
+        requireNotNull(device.wait(Until.findObject(By.text(SEARCH_EMPTY_TITLE)), CONTENT_TIMEOUT_MS))
+
+        requireNotNull(device.findObject(By.clazz("android.widget.EditText"))).text = "Duplicate"
+        requireNotNull(device.wait(Until.findObject(By.text(EXPECTED_SEARCH_RESULT)), CONTENT_TIMEOUT_MS)) {
+            "Representative MEDIUM search result did not stabilize"
+        }
+        requireNotNull(device.findObject(By.clazz("android.widget.EditText"))).text = ""
+        requireNotNull(device.wait(Until.findObject(By.text(SEARCH_EMPTY_TITLE)), CONTENT_TIMEOUT_MS)) {
+            "Search clear did not return to the non-search state"
+        }
+        requireNotNull(device.findObject(By.text("Back"))).click()
+        requireNotNull(device.wait(Until.findObject(By.text(SONGS_TITLE)), CONTENT_TIMEOUT_MS))
+
+        requireNotNull(device.findObject(By.text(ALBUMS_TITLE)).click())
+        requireNotNull(device.wait(Until.findObject(By.text(FIRST_ALBUM_TITLE)), CONTENT_TIMEOUT_MS)) {
+            "Albums did not remain stable after sort/search projection work"
+        }
+        requireNotNull(device.findObject(By.text(ARTISTS_TITLE)).click())
+        check(device.wait(Until.hasObject(By.textStartsWith(ARTIST_PREFIX)), CONTENT_TIMEOUT_MS)) {
+            "Artists did not remain stable after sort/search projection work"
+        }
+
+        val logs = device.executeShellCommand("logcat -d -v brief")
+        check("Key \"" !in logs || "was already used" !in logs) {
+            "Compose reported a duplicate lazy-list key"
+        }
+        check("FATAL EXCEPTION" !in logs || TARGET_PACKAGE !in logs) {
+            "LibrePlayer crashed during the sort/search projection smoke"
+        }
+    }
+
+    @Test
     fun searchProgressiveQuery() = benchmarkRule.measureRepeated(
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
@@ -200,6 +247,7 @@ class LibraryUiBenchmark {
         const val ARTISTS_TITLE = "Artists"
         const val ARTIST_PREFIX = "Artist "
         const val SEARCH_DESCRIPTION = "Search library"
+        const val SORT_DESCRIPTION = "Sort songs"
         const val SEARCH_EMPTY_TITLE = "Search your library"
         const val FIRST_SONG_TITLE = "Duplicate Display Metadata"
         const val FIRST_SONG_PATH =

@@ -1,7 +1,9 @@
 package com.libreplayer.benchmark
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Base64
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.ExperimentalMetricApi
@@ -9,6 +11,10 @@ import androidx.benchmark.macro.MemoryUsageMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.StaleObjectException
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -162,6 +168,180 @@ class SynchronizationBenchmark {
         check(result.getString("q32SpecialAlbumKey") == result.getString("q32SpecialRouteArgument"))
     }
 
+    @Test
+    fun sortingAndSearchAuthority() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val device = UiDevice.getInstance(instrumentation)
+        check(device.executeShellCommand("pm clear $PACKAGE_NAME").contains("Success"))
+        device.executeShellCommand("pm grant $PACKAGE_NAME android.permission.READ_MEDIA_AUDIO")
+        val resolver = instrumentation.context.contentResolver
+        val probeUri = Uri.parse("content://com.libreplayer.synchronization-probe")
+        val initial = requireNotNull(resolver.call(probeUri, "q3.3-sync", null, null))
+
+        check(initial.getInt("q33SongCount") == 10)
+        val titleFiles = initial.strings("q33TitleFiles")
+        val titleIds = initial.strings("q33TitleIds")
+        check(titleFiles.take(8) == listOf(
+            "AlphaA3.mp3",
+            "AlphaA1.mp3",
+            "AlphaA2.mp3",
+            "AlphaB1.mp3",
+            "Beta.mp3",
+            "Dots.mp3",
+            "Plain.mp3",
+            "Special.mp3",
+        ))
+        check(titleFiles.drop(8).toSet() == setOf("TwinA.mp3", "TwinB.mp3"))
+        check(titleIds.size == 10 && titleIds.distinct().size == 10)
+        check(titleIds.drop(8) == titleIds.drop(8).sorted())
+
+        val albumSortFiles = initial.strings("q33AlbumSortFiles")
+        val albumSortIds = initial.strings("q33AlbumSortIds")
+        check(albumSortFiles.take(5) == listOf(
+            "AlphaA1.mp3",
+            "AlphaA2.mp3",
+            "AlphaA3.mp3",
+            "AlphaB1.mp3",
+            "Beta.mp3",
+        ))
+        check(albumSortFiles.subList(5, 7).toSet() == setOf("TwinA.mp3", "TwinB.mp3"))
+        check(albumSortIds.subList(5, 7) == albumSortIds.subList(5, 7).sorted())
+        check(albumSortFiles.drop(7) == listOf("Dots.mp3", "Plain.mp3", "Special.mp3"))
+
+        check(initial.strings("q33AlbumTitles") == listOf(
+            "Album Alpha",
+            "Album Alpha",
+            "Album Beta",
+            "Punctuation",
+            "Punctuation",
+            "Symbols %2F / ? # |",
+        ))
+        check(initial.strings("q33AlbumArtists") == listOf(
+            "Artist A",
+            "Artist B",
+            "Artist A",
+            "R.E.M.",
+            "REM",
+            "A|B",
+        ))
+        check(initial.strings("q33AlbumIds").distinct().size == 6)
+        check(initial.strings("q33ArtistNames") == listOf("Artist A", "Artist B", "A|B", "R.E.M.", "REM"))
+        check(initial.strings("q33ArtistIds").distinct().size == 5)
+        check(initial.strings("q33AlphaTrackFiles") == listOf("AlphaA1.mp3", "AlphaA2.mp3", "AlphaA3.mp3"))
+        check(initial.strings("q33AlphaTrackIds").distinct().size == 3)
+
+        check(initial.strings("q33TitleSearchFiles") == listOf("AlphaA3.mp3", "AlphaA1.mp3", "AlphaA2.mp3"))
+        check(initial.strings("q33ArtistSearchFiles") == listOf("AlphaB1.mp3"))
+        check(initial.getInt("q33ArtistSearchAlbums") == 1)
+        check(initial.getInt("q33ArtistSearchArtists") == 1)
+        check(initial.strings("q33AlbumSearchFiles").toSet() == setOf("Beta.mp3", "TwinA.mp3", "TwinB.mp3"))
+        check(initial.getInt("q33AlbumSearchAlbums") == 1)
+        check(initial.strings("q33TwinFiles").toSet() == setOf("TwinA.mp3", "TwinB.mp3"))
+        check(initial.strings("q33TwinIds").distinct().size == 2)
+        check(initial.getInt("q33NoMatchTotal") == 0)
+        check(initial.getInt("q33BlankTotal") == 0)
+        check(initial.getString("q33SelectedId") == initial.getString("q33SelectedMediaId"))
+        check(initial.getString("q33SelectedUri") == initial.getString("q33SelectedMediaUri"))
+
+        device.executeShellCommand("am force-stop $PACKAGE_NAME")
+        val launchIntent = requireNotNull(
+            instrumentation.targetContext.packageManager.getLaunchIntentForPackage(PACKAGE_NAME),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        instrumentation.targetContext.startActivity(launchIntent)
+        check(device.wait(Until.hasObject(By.text("Songs")), UI_TIMEOUT_MS))
+        device.wait(Until.gone(By.text("Updating library")), REFRESH_TIMEOUT_MS)
+
+        requireNotNull(device.findObject(By.desc("Sort songs"))).click()
+        requireNotNull(device.wait(Until.findObject(By.text("Title")), UI_TIMEOUT_MS)).click()
+        device.waitForIdle()
+        val titleFirst = requireNotNull(device.findObject(By.text("Alpha A Disc Two")))
+        val titleSecond = requireNotNull(device.findObject(By.text("Alpha A One")))
+        check(titleFirst.visibleBounds.centerY() < titleSecond.visibleBounds.centerY())
+        requireNotNull(device.findObject(By.desc("Sort songs"))).click()
+        requireNotNull(device.wait(Until.findObject(By.text("Album")), UI_TIMEOUT_MS)).click()
+        device.waitForIdle()
+
+        requireNotNull(device.findObject(By.desc("Search library"))).click()
+        check(device.wait(Until.hasObject(By.text("Search your library")), UI_TIMEOUT_MS))
+        setSearchText(device, "Alpha A")
+        val albumFirst = requireNotNull(device.wait(Until.findObject(By.text("Alpha A One")), UI_TIMEOUT_MS))
+        val albumThird = requireNotNull(device.findObject(By.text("Alpha A Disc Two")))
+        check(albumFirst.visibleBounds.centerY() < albumThird.visibleBounds.centerY())
+        listOf("a", "al", "album", "zzz").forEach { setSearchText(device, it) }
+        check(device.wait(Until.hasObject(By.text("No matches")), UI_TIMEOUT_MS)) {
+            "Rapid replacement did not settle on the final no-match query"
+        }
+
+        setSearchText(device, "Alpha B One")
+        requireNotNull(device.wait(Until.findObject(By.text("Alpha B One")), UI_TIMEOUT_MS)).click()
+        val expectedSelectedId = requireNotNull(initial.getString("q33SelectedId"))
+        val expectedSelectedUri = requireNotNull(initial.getString("q33SelectedUri"))
+        val selectionDeadline = SystemClock.elapsedRealtime() + UI_TIMEOUT_MS
+        var selected = resolver.call(probeUri, "q3.3-selection", null, null)
+        while (selected?.getString("q33CurrentId") != expectedSelectedId &&
+            SystemClock.elapsedRealtime() < selectionDeadline
+        ) {
+            SystemClock.sleep(100L)
+            selected = resolver.call(probeUri, "q3.3-selection", null, null)
+        }
+        val selectedState = requireNotNull(selected)
+        check(selectedState.getString("q33CurrentId") == expectedSelectedId)
+        check(selectedState.getString("q33CurrentUri") == expectedSelectedUri)
+
+        setSearchText(device, "Twin")
+        check(waitForExactTextCount(device, "Twin", 2, UI_TIMEOUT_MS))
+        val twinFiles = initial.strings("q33TwinFiles")
+        val twinUris = initial.strings("q33TwinUris")
+        val twinBUri = twinUris[twinFiles.indexOf("TwinB.mp3")]
+        device.executeShellCommand("rm -f /sdcard/Music/LibrePlayerQ32/TwinB.mp3")
+        device.executeShellCommand("content delete --uri $twinBUri")
+        val removed = requireNotNull(resolver.call(probeUri, "q3.3-sync", null, null))
+        check(removed.getInt("q33SongCount") == 9)
+        check(removed.strings("q33TwinFiles") == listOf("TwinA.mp3"))
+        check(waitForExactTextCount(device, "Twin", 1, UI_TIMEOUT_MS)) {
+            "Active-query results did not update after the accepted repository refresh"
+        }
+
+        setSearchText(device, "")
+        check(device.wait(Until.hasObject(By.text("Search your library")), UI_TIMEOUT_MS))
+        requireNotNull(device.findObject(By.text("Back"))).click()
+        check(device.wait(Until.hasObject(By.text("Songs")), UI_TIMEOUT_MS))
+        check(device.hasObject(By.text("Track 00006"))) {
+            "Clearing search did not restore current browse membership under the active Album sort"
+        }
+    }
+
+    private fun Bundle.strings(key: String): List<String> =
+        requireNotNull(getStringArray(key)) { "Missing String array: $key" }.toList()
+
+    private fun setSearchText(device: UiDevice, text: String) {
+        repeat(UI_OBJECT_RETRIES) {
+            try {
+                requireNotNull(device.findObject(By.clazz("android.widget.EditText"))) {
+                    "Search field is not present"
+                }.text = text
+                return
+            } catch (_: StaleObjectException) {
+                SystemClock.sleep(UI_OBJECT_RETRY_MS)
+            }
+        }
+        error("Search field remained stale")
+    }
+
+    private fun waitForExactTextCount(
+        device: UiDevice,
+        text: String,
+        expected: Int,
+        timeoutMs: Long,
+    ): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        do {
+            if (device.findObjects(By.text(text).clazz("android.widget.TextView")).size == expected) return true
+            SystemClock.sleep(100L)
+        } while (SystemClock.elapsedRealtime() < deadline)
+        return false
+    }
+
     private fun albumIndex(
         titles: Array<String>,
         artists: Array<String>,
@@ -178,5 +358,9 @@ class SynchronizationBenchmark {
     private companion object {
         const val PACKAGE_NAME = "com.libreplayer"
         const val FILE_SEPARATOR = "\u001F"
+        const val UI_TIMEOUT_MS = 15_000L
+        const val REFRESH_TIMEOUT_MS = 30_000L
+        const val UI_OBJECT_RETRIES = 20
+        const val UI_OBJECT_RETRY_MS = 50L
     }
 }
