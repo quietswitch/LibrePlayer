@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import com.libreplayer.library.semantics.decodeMediaStoreTrackNumber
+import com.libreplayer.library.semantics.normalizeMetadataYear
 import androidx.annotation.RequiresApi
 import androidx.documentfile.provider.DocumentFile
 import com.libreplayer.data.repository.SongSourceType
@@ -304,7 +305,9 @@ class DeviceLibraryScanner(
             durationMs = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)),
             trackNumber = trackDiscNumbers.trackNumber,
             discNumber = trackDiscNumbers.discNumber,
-            year = getInt(getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)).takeIf { it > 0 },
+            year = normalizeMetadataYear(
+                getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)),
+            ),
             dateAddedEpochSeconds = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)),
             dateModifiedEpochSeconds = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)),
             displayName = getString(getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME))

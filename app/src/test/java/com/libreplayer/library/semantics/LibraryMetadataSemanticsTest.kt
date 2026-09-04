@@ -18,11 +18,15 @@ class LibraryMetadataSemanticsTest {
     fun `metadata ordinals accept n and n of total without inventing zero`() {
         assertThat(parseMetadataOrdinal("1")).isEqualTo(1)
         assertThat(parseMetadataOrdinal(" 1 / 12 ")).isEqualTo(1)
+        assertThat(parseMetadataOrdinal("01/12")).isEqualTo(1)
+        assertThat(parseMetadataOrdinal("1/0")).isEqualTo(1)
         assertThat(parseMetadataOrdinal(null)).isNull()
         assertThat(parseMetadataOrdinal("")).isNull()
+        assertThat(parseMetadataOrdinal(" \t\n ")).isNull()
         assertThat(parseMetadataOrdinal("0/12")).isNull()
         assertThat(parseMetadataOrdinal("-1")).isNull()
         assertThat(parseMetadataOrdinal("side-a")).isNull()
+        assertThat(parseMetadataOrdinal("999999999999999999999999/12")).isNull()
     }
 
     @Test
@@ -31,8 +35,15 @@ class LibraryMetadataSemanticsTest {
         assertThat(parseMetadataYear(" 1999 ")).isEqualTo(1999)
         assertThat(parseMetadataYear(null)).isNull()
         assertThat(parseMetadataYear("0")).isNull()
+        assertThat(parseMetadataYear("-1")).isNull()
+        assertThat(parseMetadataYear("9999")).isEqualTo(9999)
+        assertThat(parseMetadataYear("10000")).isNull()
+        assertThat(parseMetadataYear("999999999999999999999999")).isNull()
         assertThat(parseMetadataYear("2024-05-06")).isNull()
         assertThat(parseMetadataYear("unknown")).isNull()
+        assertThat(normalizeMetadataYear(Long.MIN_VALUE)).isNull()
+        assertThat(normalizeMetadataYear(2026L)).isEqualTo(2026)
+        assertThat(normalizeMetadataYear(Long.MAX_VALUE)).isNull()
     }
 
     @Test

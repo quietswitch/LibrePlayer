@@ -10,6 +10,8 @@ import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.SongSourceType
+import com.libreplayer.library.semantics.parseMetadataOrdinal
+import com.libreplayer.library.semantics.parseMetadataYear
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -188,9 +190,15 @@ class AudioDetailsReader(
                     artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
                     album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM),
                     albumArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST),
-                    trackNumber = parseNumber(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)),
-                    discNumber = parseNumber(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER)),
-                    year = parseNumber(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)),
+                    trackNumber = parseMetadataOrdinal(
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER),
+                    ),
+                    discNumber = parseMetadataOrdinal(
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER),
+                    ),
+                    year = parseMetadataYear(
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR),
+                    ),
                     genre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE),
                     composer = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER),
                     durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull(),
@@ -240,11 +248,6 @@ class AudioDetailsReader(
             .takeIf { it.isNotBlank() && it != name }
             ?.lowercase(Locale.US)
     }
-
-    private fun parseNumber(raw: String?): Int? =
-        raw?.substringBefore('/')
-            ?.trim()
-            ?.toIntOrNull()
 
     private fun firstPositive(vararg values: Long?): Long? =
         values.firstOrNull { value -> value != null && value > 0L }

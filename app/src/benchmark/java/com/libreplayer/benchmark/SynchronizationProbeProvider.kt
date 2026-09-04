@@ -16,6 +16,7 @@ import com.libreplayer.data.repository.LibrarySortOption
 import com.libreplayer.data.repository.Song
 import com.libreplayer.data.repository.SongSourceType
 import com.libreplayer.data.repository.asModel
+import com.libreplayer.library.metadata.AudioMetadataReader
 import com.libreplayer.library.semantics.albumBrowseGroupId
 import com.libreplayer.library.semantics.albumBrowseSongs
 import com.libreplayer.library.semantics.artistBrowseGroupId
@@ -24,11 +25,14 @@ import com.libreplayer.library.semantics.buildBrowseAlbums
 import com.libreplayer.library.semantics.buildBrowseArtists
 import com.libreplayer.library.semantics.sortAlbumTracks
 import com.libreplayer.library.semantics.sortSongs
+import com.libreplayer.media.playback.PlaybackConnection
 import com.libreplayer.navigation.AppRoute
 import com.libreplayer.util.LibrarySearchEngine
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 /** Benchmark-variant-only access to the real repository synchronization paths. */
 class SynchronizationProbeProvider : ContentProvider() {
@@ -44,8 +48,10 @@ class SynchronizationProbeProvider : ContentProvider() {
             METHOD_Q31_SYNC -> traced { repository.rescanLibrary() }
             METHOD_Q32_SYNC -> traced { repository.rescanLibrary() }
             METHOD_Q33_SYNC -> traced { repository.rescanLibrary() }
+            METHOD_Q34_SYNC -> traced { repository.rescanLibrary() }
             METHOD_CATALOG -> Unit
             METHOD_Q33_SELECTION -> Unit
+            METHOD_Q34_PLAY -> Unit
             else -> error("Unsupported synchronization probe method: $method")
         }
         val elapsedNanos = SystemClock.elapsedRealtimeNanos() - startedNanos
@@ -63,6 +69,8 @@ class SynchronizationProbeProvider : ContentProvider() {
             )
             METHOD_Q33_SYNC -> q33CatalogBundle(songs, elapsedNanos)
             METHOD_Q33_SELECTION -> q33SelectionBundle(container.playbackConnection.uiState.value)
+            METHOD_Q34_SYNC -> q34CatalogBundle(songs, elapsedNanos)
+            METHOD_Q34_PLAY -> q34PlayBundle(container.playbackConnection, songs)
             else -> catalogBundle(songs, elapsedNanos, arg)
         }
     }
@@ -263,6 +271,117 @@ class SynchronizationProbeProvider : ContentProvider() {
             putString(KEY_Q33_CURRENT_URI, state.currentSong?.contentUri)
         }
 
+    /** Exact Q3.4 projections from the real API-level MediaStore and repository snapshot. */
+    private fun q34CatalogBundle(allSongs: List<Song>, elapsedNanos: Long): Bundle {
+        val songs = allSongs.filter { song ->
+            song.sourceType == SongSourceType.MEDIA_STORE &&
+                song.relativePath?.replace('\\', '/')?.startsWith(Q34_RELATIVE_ROOT) == true
+        }.sortedBy(Song::displayName)
+        val albums = buildBrowseAlbums(songs)
+        val artists = buildBrowseArtists(songs)
+        val titleSorted = sortSongs(songs, LibrarySortOption.TITLE)
+        val longSong = songs.singleOrNull { it.displayName == Q34_LONG_FILE }
+        val numericSong = songs.singleOrNull { it.displayName == Q34_NUMERIC_FILE }
+        val malformedSong = songs.singleOrNull { it.displayName == Q34_PLAYABLE_MALFORMED_FILE }
+        val metadataReader = AudioMetadataReader(requireNotNull(context))
+        val numericRetriever = numericSong?.let { metadataReader.read(Uri.parse(it.contentUri)) }
+        val malformedRetriever = malformedSong?.let { metadataReader.read(Uri.parse(it.contentUri)) }
+        val selected = songs.singleOrNull { it.displayName == Q34_SELECTED_FILE }
+        val selectedMediaItem = selected?.toProductionMediaItem()
+        val longAlbumId = longSong?.albumBrowseGroupId()
+        val longRouteArgument = longAlbumId
+            ?.let(AppRoute.AlbumDetail::create)
+            ?.substringAfter("album/")
+            ?.let(Uri::decode)
+        val fingerprintLines = songs.map { song ->
+            listOf(
+                song.id,
+                song.contentUri,
+                song.displayName,
+                song.title ?: NULL_MARKER,
+                song.artist ?: NULL_MARKER,
+                song.album ?: NULL_MARKER,
+                song.resolvedTitle,
+                song.resolvedArtist,
+                song.resolvedAlbum,
+                song.trackNumber?.toString() ?: NULL_MARKER,
+                song.discNumber?.toString() ?: NULL_MARKER,
+                song.year?.toString() ?: NULL_MARKER,
+                song.albumBrowseGroupId(),
+                song.artistBrowseGroupId(),
+            ).joinToString(FINGERPRINT_SEPARATOR)
+        }
+        val longSearch = LibrarySearchEngine.search("long-needle", songs, albums, artists)
+
+        return Bundle().apply {
+            putLong(KEY_ELAPSED_NANOS, elapsedNanos)
+            putInt(KEY_Q34_COUNT, songs.size)
+            putStringArray(KEY_Q34_IDS, songs.map(Song::id).toTypedArray())
+            putStringArray(KEY_Q34_URIS, songs.map(Song::contentUri).toTypedArray())
+            putStringArray(KEY_Q34_FILES, songs.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q34_TITLES, songs.map { it.title ?: NULL_MARKER }.toTypedArray())
+            putStringArray(KEY_Q34_ARTISTS, songs.map { it.artist ?: NULL_MARKER }.toTypedArray())
+            putStringArray(KEY_Q34_ALBUMS, songs.map { it.album ?: NULL_MARKER }.toTypedArray())
+            putStringArray(KEY_Q34_RESOLVED_TITLES, songs.map(Song::resolvedTitle).toTypedArray())
+            putStringArray(KEY_Q34_RESOLVED_ARTISTS, songs.map(Song::resolvedArtist).toTypedArray())
+            putStringArray(KEY_Q34_RESOLVED_ALBUMS, songs.map(Song::resolvedAlbum).toTypedArray())
+            putIntArray(KEY_Q34_TRACKS, songs.map { it.trackNumber ?: -1 }.toIntArray())
+            putIntArray(KEY_Q34_DISCS, songs.map { it.discNumber ?: -1 }.toIntArray())
+            putIntArray(KEY_Q34_YEARS, songs.map { it.year ?: -1 }.toIntArray())
+            putStringArray(KEY_Q34_ALBUM_IDS, songs.map(Song::albumBrowseGroupId).toTypedArray())
+            putStringArray(KEY_Q34_ARTIST_IDS, songs.map(Song::artistBrowseGroupId).toTypedArray())
+            putStringArray(KEY_Q34_TITLE_SORT_FILES, titleSorted.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q34_LONG_SEARCH_FILES, longSearch.songs.map(Song::displayName).toTypedArray())
+            putInt(KEY_Q34_LONG_TITLE_LENGTH, longSong?.title?.length ?: -1)
+            putInt(KEY_Q34_LONG_ARTIST_LENGTH, longSong?.artist?.length ?: -1)
+            putInt(KEY_Q34_LONG_ALBUM_LENGTH, longSong?.album?.length ?: -1)
+            putString(KEY_Q34_LONG_ALBUM_ID, longAlbumId)
+            putString(KEY_Q34_LONG_ROUTE_ARGUMENT, longRouteArgument)
+            putString(KEY_Q34_SELECTED_ID, selected?.id)
+            putString(KEY_Q34_SELECTED_URI, selected?.contentUri)
+            putString(KEY_Q34_SELECTED_MEDIA_ID, selectedMediaItem?.mediaId)
+            putString(KEY_Q34_SELECTED_MEDIA_URI, selectedMediaItem?.localConfiguration?.uri?.toString())
+            putString(KEY_Q34_FINGERPRINT, identityFingerprint(fingerprintLines))
+            putInt(KEY_Q34_RETRIEVER_NUMERIC_TRACK, numericRetriever?.trackNumber ?: -1)
+            putInt(KEY_Q34_RETRIEVER_NUMERIC_DISC, numericRetriever?.discNumber ?: -1)
+            putInt(KEY_Q34_RETRIEVER_NUMERIC_YEAR, numericRetriever?.year ?: -1)
+            putBoolean(KEY_Q34_RETRIEVER_MALFORMED_READABLE, malformedRetriever != null)
+            putLong(KEY_Q34_RETRIEVER_MALFORMED_DURATION, malformedRetriever?.durationMs ?: -1L)
+            putString(KEY_Q34_RETRIEVER_MALFORMED_TITLE, malformedRetriever?.title)
+        }
+    }
+
+    private suspend fun q34PlayBundle(
+        connection: PlaybackConnection,
+        allSongs: List<Song>,
+    ): Bundle {
+        val selected = allSongs.single { song ->
+            song.sourceType == SongSourceType.MEDIA_STORE &&
+                song.relativePath?.replace('\\', '/')?.startsWith(Q34_RELATIVE_ROOT) == true &&
+                song.displayName == Q34_PLAYABLE_MALFORMED_FILE
+        }
+        withContext(Dispatchers.Main.immediate) {
+            connection.playSong(listOf(selected), 0)
+        }
+        val deadline = SystemClock.elapsedRealtime() + Q34_PLAY_TIMEOUT_MS
+        var state = connection.uiState.value
+        while (
+            SystemClock.elapsedRealtime() < deadline &&
+            (state.currentSong?.id != selected.id || (!state.isPlaying && state.errorMessage == null))
+        ) {
+            delay(Q34_PLAY_POLL_MS)
+            state = connection.uiState.value
+        }
+        return Bundle().apply {
+            putString(KEY_Q34_PLAY_EXPECTED_ID, selected.id)
+            putString(KEY_Q34_PLAY_EXPECTED_URI, selected.contentUri)
+            putString(KEY_Q34_PLAY_CURRENT_ID, state.currentSong?.id)
+            putString(KEY_Q34_PLAY_CURRENT_URI, state.currentSong?.contentUri)
+            putBoolean(KEY_Q34_PLAY_IS_PLAYING, state.isPlaying)
+            putString(KEY_Q34_PLAY_ERROR, state.errorMessage)
+        }
+    }
+
     private fun identityFingerprint(identities: List<String>): String {
         val digest = MessageDigest.getInstance("SHA-256")
         identities.forEach { identity ->
@@ -308,6 +427,8 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val METHOD_Q32_SYNC = "q3.2-sync"
         const val METHOD_Q33_SYNC = "q3.3-sync"
         const val METHOD_Q33_SELECTION = "q3.3-selection"
+        const val METHOD_Q34_SYNC = "q3.4-sync"
+        const val METHOD_Q34_PLAY = "q3.4-play"
         const val KEY_ELAPSED_NANOS = "elapsedNanos"
         const val KEY_FIXTURE_COUNT = "fixtureCount"
         const val KEY_UNIQUE_IDENTITIES = "uniqueIdentities"
@@ -381,12 +502,60 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val KEY_Q33_SELECTED_MEDIA_URI = "q33SelectedMediaUri"
         const val KEY_Q33_CURRENT_ID = "q33CurrentId"
         const val KEY_Q33_CURRENT_URI = "q33CurrentUri"
+        const val KEY_Q34_COUNT = "q34Count"
+        const val KEY_Q34_IDS = "q34Ids"
+        const val KEY_Q34_URIS = "q34Uris"
+        const val KEY_Q34_FILES = "q34Files"
+        const val KEY_Q34_TITLES = "q34Titles"
+        const val KEY_Q34_ARTISTS = "q34Artists"
+        const val KEY_Q34_ALBUMS = "q34Albums"
+        const val KEY_Q34_RESOLVED_TITLES = "q34ResolvedTitles"
+        const val KEY_Q34_RESOLVED_ARTISTS = "q34ResolvedArtists"
+        const val KEY_Q34_RESOLVED_ALBUMS = "q34ResolvedAlbums"
+        const val KEY_Q34_TRACKS = "q34Tracks"
+        const val KEY_Q34_DISCS = "q34Discs"
+        const val KEY_Q34_YEARS = "q34Years"
+        const val KEY_Q34_ALBUM_IDS = "q34AlbumIds"
+        const val KEY_Q34_ARTIST_IDS = "q34ArtistIds"
+        const val KEY_Q34_TITLE_SORT_FILES = "q34TitleSortFiles"
+        const val KEY_Q34_LONG_SEARCH_FILES = "q34LongSearchFiles"
+        const val KEY_Q34_LONG_TITLE_LENGTH = "q34LongTitleLength"
+        const val KEY_Q34_LONG_ARTIST_LENGTH = "q34LongArtistLength"
+        const val KEY_Q34_LONG_ALBUM_LENGTH = "q34LongAlbumLength"
+        const val KEY_Q34_LONG_ALBUM_ID = "q34LongAlbumId"
+        const val KEY_Q34_LONG_ROUTE_ARGUMENT = "q34LongRouteArgument"
+        const val KEY_Q34_SELECTED_ID = "q34SelectedId"
+        const val KEY_Q34_SELECTED_URI = "q34SelectedUri"
+        const val KEY_Q34_SELECTED_MEDIA_ID = "q34SelectedMediaId"
+        const val KEY_Q34_SELECTED_MEDIA_URI = "q34SelectedMediaUri"
+        const val KEY_Q34_FINGERPRINT = "q34Fingerprint"
+        const val KEY_Q34_RETRIEVER_NUMERIC_TRACK = "q34RetrieverNumericTrack"
+        const val KEY_Q34_RETRIEVER_NUMERIC_DISC = "q34RetrieverNumericDisc"
+        const val KEY_Q34_RETRIEVER_NUMERIC_YEAR = "q34RetrieverNumericYear"
+        const val KEY_Q34_RETRIEVER_MALFORMED_READABLE = "q34RetrieverMalformedReadable"
+        const val KEY_Q34_RETRIEVER_MALFORMED_DURATION = "q34RetrieverMalformedDuration"
+        const val KEY_Q34_RETRIEVER_MALFORMED_TITLE = "q34RetrieverMalformedTitle"
+        const val KEY_Q34_PLAY_EXPECTED_ID = "q34PlayExpectedId"
+        const val KEY_Q34_PLAY_EXPECTED_URI = "q34PlayExpectedUri"
+        const val KEY_Q34_PLAY_CURRENT_ID = "q34PlayCurrentId"
+        const val KEY_Q34_PLAY_CURRENT_URI = "q34PlayCurrentUri"
+        const val KEY_Q34_PLAY_IS_PLAYING = "q34PlayIsPlaying"
+        const val KEY_Q34_PLAY_ERROR = "q34PlayError"
         const val LOG_TAG = "LibrePlayerSyncProbe"
         private const val FIXTURE_RELATIVE_ROOT = "Music/LibrePlayerBenchmark/MEDIUM/"
         private const val Q31_RELATIVE_ROOT = "Music/LibrePlayerQ31/"
         private const val Q32_RELATIVE_ROOT = "Music/LibrePlayerQ32/"
+        private const val Q34_RELATIVE_ROOT = "Music/LibrePlayerBenchmark/Q34_METADATA_PATHOLOGY/"
         private const val Q32_SELECTED_FILE = "AlphaB1.mp3"
         private const val Q32_SPECIAL_FILE = "Special.mp3"
+        private const val Q34_SELECTED_FILE = "05-unicode-precomposed.mp3"
+        private const val Q34_LONG_FILE = "08-long-needle.mp3"
+        private const val Q34_NUMERIC_FILE = "09-numeric.mp3"
+        private const val Q34_PLAYABLE_MALFORMED_FILE = "11-malformed-playable.mp3"
+        private const val Q34_PLAY_TIMEOUT_MS = 10_000L
+        private const val Q34_PLAY_POLL_MS = 50L
+        private const val NULL_MARKER = "<null>"
+        private const val FINGERPRINT_SEPARATOR = "\u001E"
         private const val FILE_SEPARATOR = "\u001F"
     }
 }

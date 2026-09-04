@@ -30,10 +30,13 @@ internal fun parseMetadataOrdinal(rawValue: String?): Int? =
 
 /** The core model stores year precision only; full dates are not inferred. */
 internal fun parseMetadataYear(rawValue: String?): Int? =
+    normalizeMetadataYear(rawValue?.trim()?.toLongOrNull())
+
+/** Both integer and textual metadata sources share the same bounded year contract. */
+internal fun normalizeMetadataYear(rawValue: Long?): Int? =
     rawValue
-        ?.trim()
-        ?.toIntOrNull()
-        ?.takeIf { it in 1..9_999 }
+        ?.takeIf { it in 1L..9_999L }
+        ?.toInt()
 
 internal fun resolvedSongTitle(title: String?, displayName: String): String =
     title?.takeIf(String::isNotBlank) ?: displayName.substringBeforeLast('.')

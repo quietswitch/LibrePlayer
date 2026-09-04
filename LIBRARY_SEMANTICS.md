@@ -1,6 +1,6 @@
 # LibrePlayer Library Semantics
 
-This document is the Q3.1 authority for local-library identity and metadata, the Q3.2 authority for browse-group membership, and the Q3.3 authority for sorting and local search. It describes the current Room schema (version 1), ingestion, browsing, ordering, and filtering behavior. It does not introduce a schema migration.
+This document is the Q3.1 authority for local-library identity and metadata, the Q3.2 authority for browse-group membership, the Q3.3 authority for sorting and local search, and the Q3.4 authority for metadata pathology. It describes the current Room schema (version 1), ingestion, browsing, ordering, filtering, and bounded adversarial-metadata behavior. It does not introduce a schema migration.
 
 ## Physical and logical song identity
 
@@ -41,7 +41,7 @@ Album and artist IDs are deterministic grouping keys. Each normalized metadata c
 
 MediaStore's encoded track field is decoded as `disc * 1000 + track`. Only positive components are retained: `0` is missing, `1000` means disc 1 with unknown track, and `2007` means disc 2 track 7. Retriever ordinals accept either `n` or `n/total`; malformed, zero, and negative values remain null. Duplicate track numbers are allowed. Q3.3 album-detail ordering is numeric disc, then numeric track, then normalized title and Song ID; numbering never defines song identity.
 
-The core model stores year precision only. A positive four-digit-or-less integer is accepted; a full date is not truncated or inferred. Genre is not retained in the core library row. Audio Details may display retriever-provided album artist and genre as raw presentation metadata, but those fields do not currently affect grouping or identity. Multi-value genre parsing is therefore deferred.
+The core model stores year precision only. Both integer and textual sources accept only `1..9999`; a full date is not truncated or inferred, and overflow-sized text is missing. Genre is not retained in the core library row. Audio Details may display retriever-provided album artist and genre as raw presentation metadata, but those fields do not currently affect grouping or identity. Multi-value genre parsing is therefore deferred.
 
 Folder information means the containing source-relative directory, not an assumed absolute filesystem path:
 
@@ -131,6 +131,60 @@ A blank normalized query produces the established non-search state (`Search your
 Query updates use a single `StateFlow` with no debounce and no child coroutine per keystroke. Each evaluation is synchronous on the background projection dispatcher, so a rapid replacement settles on the latest state and cannot be overwritten later by an older asynchronous job. The ordered current catalog is shared between catalog and search presentation; there is no duplicate Song collector. Search recomputes only when the query, current Song snapshot, or active Song sort changes—not for playlist, favorite, playback-position, or unrelated metadata emissions. A synchronization refresh therefore updates an active query directly from the same current Song authority used by Q3.2, with coherent group counts and no secondary cache/index rebuild.
 
 For `n` Songs, the accepted implementation sorts in approximately `O(n log n)` and filters in `O(n)` per query evaluation; sorting plus filtering does not perform a Room query or nested full-library scan per row. Canonical 2,000-song UI authority remains bounded here; huge-library scale remains later Q3 work.
+
+## Metadata pathology semantics
+
+Q3.4 distinguishes behavior defined by LibrePlayer from values selected or transformed by Android's media stack. It does not make LibrePlayer a tag parser, repair malformed tags, or infer metadata that Android did not expose.
+
+### LibrePlayer-defined behavior
+
+MediaStore title, artist, and album projections and retriever title, artist, and album strings are stored as received. Nullable Room fields remain nullable and have no application-level length cap. LibrePlayer does not persist filename, `Unknown artist`, or `Unknown album` presentation fallbacks into those raw fields; it also does not lowercase, trim, strip punctuation, or Unicode-normalize them. Derived sort keys, group IDs, and display fallbacks are separate values. Physical identity remains source ID plus content URI and never depends on metadata.
+
+Null, empty, and whitespace-only title/artist/album values are unusable for presentation and grouping. Title then uses the filename stem; artist and album use their established fallback labels. Raw whitespace is not rewritten. Empty and whitespace-only artist/album values use the typed missing group component, so they cannot create an invisible group. A literal `Unknown Artist` or `Unknown Album` is a present source value and therefore has a different typed group ID from missing metadata.
+
+Grouping and ordering retain punctuation, internal whitespace, scripts, combining sequences, and supplementary-plane characters. Surrounding whitespace and case are the only grouping normalizations; search/sort likewise trim and lowercase using their documented locale-independent key. There is deliberately no NFC, NFD, NFKC, or NFKD entity merge: precomposed `é` and decomposed `e` plus combining acute remain distinct source strings and distinct group IDs. Length-prefixed typed components keep separators such as `|`, `:`, `/`, `\`, `%`, `?`, and `#` collision-free.
+
+Newline, carriage-return, tab, and other unusual strings are not automatically sanitized. Song, Album, and Artist list rows render through bounded one-line Compose `Text` with ellipsis, while identity and navigation retain the full semantic value. A presentation-only sanitizer would require a demonstrated correctness or unsafe-control defect; unusual but stable platform text is not sufficient reason to destroy source meaning.
+
+The accepted bounded long-value authority is exactly 1,024 UTF-16 code units for title and 4,096 each for artist and album. At those bounds, Room projection, typed group generation, deterministic equality, `O(length)` normalization/search, `O(n log n)` sorting, percent-encoded navigation, and playback handoff complete without truncation, collision, or exception. This is a tested bound, not a universal provider or navigation maximum and not a production tag-length cap.
+
+Retriever track/disc values accept a positive `n` or positive numerator in `n/total`. `1`, `1/12`, `01/12`, and `1/0` therefore produce ordinal 1; zero, negative, blank, malformed, and overflow-sized numerators are missing. MediaStore's packed integer retains only positive decoded components. Both MediaStore and retriever years use the same `1..9999` contract. Audio Details uses these same parsers and cannot reintroduce invalid values. Album-detail ordering remains numeric, so track 2 precedes track 10 and missing follows valid positive ordinals.
+
+When MediaStore and SAF can be proven to represent the same canonical primary-storage path, source precedence is deterministic: MediaStore supplies the durable Song identity and its usable metadata wins; only missing/unusable fields are filled from the SAF observation. Reversing scan input order produces the same merged row. If a canonical path cannot be established, the observations remain distinct occurrences. This policy does not guess sameness from tag content.
+
+### Android/platform-observed behavior
+
+The API-36 authority used 11 deterministic MP3 fixtures with ID3v2.3 tags (or no tag for the absent case) on `LibrePlayer_Benchmark_API_36`. Android indexed every file as one MediaStore occurrence. It preserved representative accented Latin, Greek, Cyrillic, CJK, Arabic, emoji, punctuation, precomposed/decomposed distinctions, and the exact tested long values. Absent and whitespace-only embedded strings were projected as filename, `<unknown>` artist, and containing-directory album fallbacks. Those strings are Android projections received by LibrePlayer; LibrePlayer does not claim they are the original embedded values.
+
+For deliberately repeated conflicting ID3 frames, this platform build exposed the first title, artist, album, track, and year frames (`Q34 Conflict First`, `Conflict Artist First`, `Conflict Album First`, track 2, year 2024). LibrePlayer receives one MediaStore value and defines no first-tag-wins or last-tag-wins rule. Other extractors, formats, API levels, and OEM builds may choose differently.
+
+The control-character fixture was indexed and usable, but Android reprojected its embedded control-bearing text into unusual non-control glyph sequences. LibrePlayer safely grouped, sorted, searched, and rendered the platform result; it does not claim raw tag-byte preservation through MediaStore. The pure semantic layer separately proves that newline, carriage-return, and tab strings received directly by LibrePlayer remain stable and safe.
+
+The malformed-tag fixture retained the same intact 31.176-second MPEG audio payload as the control. MediaStore indexed it with filename/directory/unknown metadata fallbacks. The shared SAF metadata extractor could still read its duration while returning no title, and playback prepared and played it with the exact Song ID and content URI. If metadata extraction fails entirely, a cached SAF occurrence is retained; a previously unseen SAF file without a readable duration is not admitted because the established 30-second library filter cannot be evaluated. MediaStore exposure remains usable when Android supplies a qualifying row. Media decode failures remain Q2.7 behavior, not metadata repair.
+
+Two unchanged repository reconciliations over the fixture set produced identical Song IDs, content URIs, raw and resolved projections, ordinals, group IDs, sort/search membership, and a canonical fingerprint. No duplicate rows or aggregate oscillation occurred. The API run also navigated through the full 4-KiB album/artist semantic route and confirmed the selected pathological Song's `Song.id == MediaItem.mediaId` and unchanged content URI.
+
+An actual imported-tree scan of the same physical file simultaneously exposed through MediaStore and SAF remains provider/platform-dependent. Q3.4 proves the merge rule in both input orders and exercises the shared SAF extractor against the same content source, but does not claim that every provider supplies a comparable canonical path.
+
+### Q3.4 coverage matrix
+
+| Pathology | Authority | Classification |
+| --- | --- | --- |
+| Null/empty/whitespace/padded text | Raw preserved; presentation fallback and typed missing group | Correct and covered |
+| Literal fallback-like values | Present typed identity remains distinct from missing | Correct and covered |
+| Unicode/scripts/emoji/NFC versus NFD | Exact source strings; deterministic, no canonical merge | Correct and covered |
+| Punctuation/route separators/percent | Length-prefixed groups plus one route decode | Correct and covered |
+| Newline/CR/tab | Pure semantic preservation; API-36 platform reprojection remained safe | Correct and covered within platform observation |
+| 1,024/4,096/4,096 text bounds | Store/group/sort/search/route/UI complete exactly | Correct and covered at tested bounds |
+| Track/disc malformed and overflow text | Positive `n[/total]`; invalid values missing | Corrected and covered |
+| MediaStore/retriever year range | Shared `1..9999` boundary with overflow-safe conversion | Corrected and covered |
+| Conflicting embedded tags | Android exposed first frames on tested stack | Platform-observed; no LibrePlayer precedence contract |
+| Malformed tag with valid audio | Platform fallback, retriever duration, exact playable handoff | Correct and covered on tested stack |
+| Cross-source disagreement | Deterministic MediaStore precedence and missing-field fill | Correct and covered in semantic layer; live dual-provider exposure limited |
+| Unchanged refresh | Stable canonical metadata/group/identity fingerprint | Correct and covered |
+| Universal tag-format/OEM behavior | Outside application-owned authority | Platform-limited / deferred |
+
+Q3.4 does not add fuzzy or semantic metadata matching, online metadata repair, tag editing, a custom tag parser, persisted album-artist/compilation/genre/full-date fields, artwork authority, M3U parsing, huge-library limits, removable-storage/OEM matrices, Folder/Genre browse surfaces, or advanced visual/accessibility behavior.
 
 ## Q3.3 coverage matrix
 

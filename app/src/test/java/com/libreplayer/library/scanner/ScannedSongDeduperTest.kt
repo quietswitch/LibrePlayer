@@ -39,6 +39,41 @@ class ScannedSongDeduperTest {
     }
 
     @Test
+    fun `cross-source metadata disagreement is deterministic in either scan order`() {
+        val mediaStoreSong = scannedSong(
+            id = "media:123",
+            sourceType = SongSourceType.MEDIA_STORE,
+            contentUri = "content://media/external/audio/media/123",
+            displayName = "Conflict.mp3",
+            relativePath = "Music/Album/",
+            title = "MediaStore title",
+            artist = "MediaStore artist",
+            album = null,
+            mimeType = "audio/mpeg",
+        )
+        val safSong = scannedSong(
+            id = "document:conflict",
+            sourceType = SongSourceType.DOCUMENT,
+            contentUri = "content://com.android.externalstorage.documents/document/primary%3AMusic%2FAlbum%2FConflict.mp3",
+            displayName = "Conflict.mp3",
+            relativePath = "/document/primary:Music/Album/Conflict.mp3",
+            title = "SAF title",
+            artist = "SAF artist",
+            album = "SAF album fallback",
+            mimeType = "audio/mpeg",
+        )
+
+        val forward = ScannedSongDeduper.dedupe(listOf(mediaStoreSong, safSong)).single()
+        val reverse = ScannedSongDeduper.dedupe(listOf(safSong, mediaStoreSong)).single()
+
+        assertThat(forward).isEqualTo(reverse)
+        assertThat(forward.id).isEqualTo(mediaStoreSong.id)
+        assertThat(forward.title).isEqualTo(mediaStoreSong.title)
+        assertThat(forward.artist).isEqualTo(mediaStoreSong.artist)
+        assertThat(forward.album).isEqualTo(safSong.album)
+    }
+
+    @Test
     fun `dedupe does not merge different songs that only share a filename`() {
         val first = scannedSong(
             id = "media:1",
