@@ -318,6 +318,7 @@ private fun SongsList(
                 durationMs = song.durationMs,
                 artworkUri = song.artworkUri,
                 fallbackArtworkUri = song.contentUri,
+                sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
                 trailingContent = {
                     SongOverflowMenu(
                         song = song,

@@ -186,6 +186,87 @@ An actual imported-tree scan of the same physical file simultaneously exposed th
 
 Q3.4 does not add fuzzy or semantic metadata matching, online metadata repair, tag editing, a custom tag parser, persisted album-artist/compilation/genre/full-date fields, artwork authority, M3U parsing, huge-library limits, removable-storage/OEM matrices, Folder/Genre browse surfaces, or advanced visual/accessibility behavior.
 
+## Artwork semantics
+
+Artwork is local presentation state, never Song, Album, or Artist identity. Artwork equality does not merge physical occurrences, differing artwork does not split an accepted group, and artwork locators are not Compose row keys. Song rows use `Song.id`; Album and Artist rows use their accepted semantic group IDs. MediaStore `ALBUM_ID` remains artwork lookup metadata and never replaces the Q3.2 Album ID.
+
+### Song sources and loading
+
+A Song carries one persisted local artwork locator and its playable content URI. For MediaStore rows, the primary locator is `content://media/external/audio/albumart/<ALBUM_ID>` when Android supplies a positive album ID, otherwise the audio row URI. For SAF rows, the document content URI is both the artwork candidate and audio locator. LibrePlayer does not copy embedded images into app storage.
+
+The UI tries each distinct candidate in order: persisted artwork locator, then playable content URI when different. On API 29 and newer it first asks `ContentResolver.loadThumbnail` for the surface-specific target; if that fails, it asks `MediaMetadataRetriever` for the local audio source's single platform-exposed embedded picture and decodes it with `BitmapFactory`. The accepted targets are 160 px for list/group rows, 144 px for the mini-player, and 768 px for Now Playing. Power-of-two sampling downsamples fallback decoding at the tested bounds. Image bytes are decoded on demand by a composed surface. Its coroutine is cancelled when the request changes or leaves composition, with cancellation checks between candidates; a synchronous platform decode already in progress is not forcibly interrupted.
+
+An empty candidate set is internally `Missing`; candidates that all fail are `Failed`. Both preserve the existing neutral initial-letter placeholder without persisting a fabricated URI or error state. A missing, stale, malformed, or unreadable image never removes its Song, changes membership, or prevents playback. There is no network fallback and no automatic refresh or retry loop.
+
+### Group representative projection
+
+An Album uses its accepted Q3.2 member list sorted by the Q3.2 album-track comparator: disc number, track number, title, then Song ID, with missing ordinals last. Each member contributes its primary and content-URI candidates in that order. The first candidate the loader can actually decode is the representative. This makes partial, stale, and corrupt leading members fall through to a later usable member while keeping the preference deterministic. Conflicting valid covers intentionally use the earliest ordered member; disc does not create another Album or artwork identity.
+
+Album candidates are built independently per full semantic Album ID. Consequently `Greatest Hits / Artist A` and `Greatest Hits / Artist B` cannot share a group candidate chain merely because their displayed titles match. Duplicate Song occurrences with identical metadata remain separate candidates tied to their occurrence locators.
+
+The current product also renders Artist artwork. Artist members use a deterministic album, disc, track, title, and Song-ID order and the same first-decodable rule. Group artwork is enriched from the current observable Song snapshot; stale persisted Album/Artist aggregate artwork is not allowed to override current membership. Persisted aggregates are nevertheless generated deterministically for non-UI consumers. Removing the chosen member and refreshing moves selection to the next usable current member; unchanged refresh input yields the same chain.
+
+### Cache identity and invalidation
+
+LibrePlayer owns an in-memory decoded-bitmap cache only; it adds no artwork disk cache. Its collision-safe request key contains the requested size variant plus every ordered candidate's length-prefixed local URI and source `dateModified` revision. It is never based on album title, artist display name, or artwork pixels. Duplicate URIs fold to their newest revision without changing first occurrence order.
+
+The cache is byte-sized by each bitmap's allocation rather than entry count. Its budget is one sixteenth of the process maximum heap, clamped to 4–24 MiB; the API-36 authority environment selected 12,582,912 bytes. Changed source modification state creates a new request key, while a failed or placeholder result is not cached and therefore cannot poison a later success. The accepted same-source fixture retained its Song ID, content URI, and semantic Album ID while a refresh changed red artwork to blue and changed the revision-bearing cache key. Detection depends on the source exposing a changed locator or modification revision; silent byte replacement with an unchanged timestamp is not established. The cache budget covers retained cache bitmap allocations, not all in-flight decode bytes, UI-held bitmaps, keys, or platform caches.
+
+### Surface and playback boundary
+
+Songs, search Song results, Album and Artist rows, Album/Artist detail Songs, playlist/favorite rows, mini-player, Now Playing, and queue use the same loader. Song-oriented surfaces use that exact Song's candidates and never substitute another Album member's cover. Group rows use the deterministic group candidate chain. Audio Details reports whether the platform retriever exposed embedded artwork but does not create another artwork authority.
+
+Playback and MediaSession retain the exact selected `Song.id` as `MediaItem.mediaId` and the unchanged audio content URI. Existing Media3 metadata publishes the Song's local artwork URI; it does not control library identity or the app UI cache. Valid, corrupt, and missing-art fixtures all prepared and played through the same occurrence-preserving path. Notification styling and Media3/platform byte caching are not redefined by Q3.5.
+
+### Tested platform and resource bounds
+
+The API-36 authority used deterministic 31.176-second MP3 audio with ID3v2.3 APIC data. JPEG, PNG, and static WebP were established locally. A 2,048×2,048 WebP was returned as a bounded 683×683 bitmap by the API-36 thumbnail path, allocating 1,865,956 bytes. Corrupt bytes failed safely. The tested truncated PNG was platform-observed to decode as a bounded 256×256 all-zero bitmap rather than throw; LibrePlayer accepts either a bounded platform decode or safe failure and makes no claim about visual validity beyond Android's decoder result.
+
+The authority journey covered search, Album detail, a playing Song, mini-player, Now Playing, queue, Artist detail, and repeated artwork-list scrolls. The initial corrected run passed in 19.065 seconds with PSS 57,350 → 89,514 KiB and threads 37 → 47. The controlling final-APK run passed in 21.411 seconds with PSS 59,607 → 90,552 KiB and threads 35 → 46; the decoded cache was 2,590,500 of 12,582,912 bytes after ordinary and large loads. These observations establish completion without an observed OOM/crash and a bounded cache sample. Because the harness force-stops the app between the pre-UI and post-UI measurements, they do not establish a same-process retained-memory plateau or exclude a monotonic ratchet.
+
+The first 2026-09-05 closeout resource attempt failed before workload cycles: shell text injection left the search field as `5Q` instead of `Q35`. Its baseline was PSS 94,730 KiB, RSS 174,108 KiB, 37 threads, and cache 0 / 12,582,912 bytes. This remains a preserved harness failure, not evidence of an artwork or playback defect; all four temporary device files and their MediaStore rows were removed. No automatic retry occurred.
+
+Under renewed explicit one-run authorization, the host script was corrected to append literal `Q`, `3`, and `5` individually with case-sensitive prefix verification, then reuse verified `Q35` across four workload cycles. Exactly one corrected observation completed on the approved API-36 emulator using the unchanged final APK and four existing synthetic files (normal JPEG, partial green PNG, corrupt art, and large WebP). No Android source or APK changed. The transcript spans 170 seconds including provisioning and cleanup; the final measurement is at 163.31 seconds. All seven baseline/workload/quiet samples retained PID 4670, spanning 145.29 seconds from baseline to final sample. The initial force-stop occurs before the baseline, never between these samples.
+
+| Ordered phase | Elapsed seconds | PSS KiB | RSS KiB | Threads | Cache bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 18.02 | 93,926 | 179,344 | 37 | 0 |
+| Cycle 1 settled | 58.22 | 92,667 | 191,784 | 39 | 2,331,084 |
+| Cycle 2 settled | 87.63 | 98,492 | 190,740 | 40 | 2,331,084 |
+| Cycle 3 settled | 116.36 | 98,880 | 191,356 | 41 | 2,331,084 |
+| Cycle 4 settled | 144.96 | 99,430 | 191,956 | 41 | 2,331,084 |
+| Quiet settle 1 | 154.13 | 92,105 | 191,184 | 41 | 2,331,084 |
+| Quiet settle 2 | 163.31 | 91,347 | 190,996 | 41 | 2,331,084 |
+
+Targeted Q1.1g: **PASS** at this bound. Cache usage plateaued below the unchanged 12,582,912-byte budget; entry count is not exposed. Threads stabilized at 41. Sampled PSS peaked at 99,430 KiB then declined during quiet settling; RSS stayed above cold baseline after warm-up but did not sustain monotonic growth. The standard `dumpsys meminfo` measurement sequence includes explicit GC events in logcat, so this is sampled settled-state behavior, not continuous allocation profiling. Each cycle's large-art result remained 683×683 / 1,865,956 allocation bytes, and corrupt-art failure remained safe and expected. No OOM, crash, unexpected restart, ANR, or uncontrolled cache/thread growth was observed. The app returned from each search workload to its browse state, responded through both final samples, and completed cleanup. All four temporary files were removed, zero matching MediaStore rows remained, and the emulator was stopped; local originals and prior evidence were preserved.
+
+The bounded Q3.5 same-process resource observation shows no obvious retained-memory ratchet or uncontrolled bitmap-cache growth under the tested artwork workload. This is not universal leak-freedom, OEM memory authority, unlimited artwork safety, or a universal PSS/RSS threshold. No prior functional authority or Gradle gate was rerun for closeout.
+
+Candidate construction is `O(k)` after deterministic sorting (`O(k log k)`) for `k` group members. It does not decode during grouping, sorting, search matching, scanning, or playback-position updates; decoding remains demand-driven by visible requests. There is no Room query per artwork row or scanner extraction triggered by Compose recomposition.
+
+The accepted Baseline Profile source remains unchanged and its binary profile assets remain packaged. Normal release-cycle reassessment should cover the changed Album/Artist constructors and copy methods, `ArtworkThumbnail`, `SongRow`, `ArtworkRequest`, candidate merging/key generation, representative selection, and the byte-budgeted loader. D8 reports stale signatures from the preserved profile; Q3.5 does not regenerate or reopen Q1.1h.
+
+### Q3.5 coverage matrix
+
+| Case | Authority | Classification |
+| --- | --- | --- |
+| A1 normal valid art | Local JPEG/PNG/WebP candidate decodes at a surface target | Correct and covered |
+| A2 missing art | Internal missing/failed state; stable local placeholder | Correct and covered |
+| A3 same Album, partial art | Ordered chain skips unusable member and selects later usable art | Corrected and covered |
+| A4 same Album, conflicting art | First decodable candidate in accepted track order | Corrected and covered |
+| A5 same title, different artist | Full Album IDs and distinct source-bearing keys isolate covers | Correct and covered |
+| A6 duplicate metadata, different source | Distinct Songs and source locators retained | Correct and covered |
+| A7 corrupt art | Decode failure falls back; audio remains playable | Correct and covered |
+| A8 truncated art | Bounded platform decode or safe fallback | Platform-observed and covered at tested bound |
+| A9 large art | 2,048-square static WebP requested/returned at bounded size | Corrected and covered |
+| A10 same-source art A→B | Stable Song/Album identity; revision key exposes B after refresh | Corrected and covered |
+| A11 representative deletion | Remaining group chooses next deterministic usable member | Corrected and covered |
+| A12 unchanged refresh | Candidate projections and canonical fingerprint stable | Correct and covered |
+| A13 search/detail/playback handoff | Shared projection and exact Song ID/content URI | Correct and covered |
+| A14 SAF | Local document URI, embedded extraction, identity, and cleanup | Correct and covered on the benchmark provider |
+
+Android and OEM thumbnail selection, multiple APIC-frame precedence, platform cache internals, and formats beyond tested JPEG, PNG, and static WebP are platform-limited and not claimed. Q3.5 does not add online artwork retrieval, remote URLs, artwork editing or repair, permanent extracted-cover storage, palette/dominant-color theming, animated-art authority, a custom codec, fuzzy metadata matching, M3U behavior, huge-library/removable-storage matrices, new browse surfaces, or broader visual/accessibility redesign.
+
 ## Q3.3 coverage matrix
 
 | Sort/search behavior | Authority | Classification |

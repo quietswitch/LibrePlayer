@@ -69,6 +69,12 @@ data class Song(
         get() = Instant.ofEpochSecond(dateAddedEpochSeconds)
 }
 
+/** Local artwork locator plus the source revision that invalidates decoded presentation state. */
+data class ArtworkCandidate(
+    val uri: String,
+    val sourceRevisionEpochSeconds: Long,
+)
+
 data class Album(
     val id: String,
     val title: String,
@@ -77,6 +83,7 @@ data class Album(
     val totalDurationMs: Long,
     val artworkUri: String?,
     val artworkFallbackUri: String? = null,
+    val artworkCandidates: List<ArtworkCandidate> = emptyList(),
 )
 
 data class Artist(
@@ -86,6 +93,7 @@ data class Artist(
     val totalDurationMs: Long,
     val artworkUri: String?,
     val artworkFallbackUri: String? = null,
+    val artworkCandidates: List<ArtworkCandidate> = emptyList(),
 )
 
 data class UserPlaylist(

@@ -70,13 +70,15 @@ internal fun buildAlbums(songs: List<SongEntity>): List<AlbumEntity> =
     }
         .map { (key, groupedSongs) ->
             val first = groupedSongs.first()
+            val artworkUri = groupedSongs.sortedWith(persistedAlbumArtworkComparator)
+                .firstNotNullOfOrNull(SongEntity::artworkUri)
             AlbumEntity(
                 id = key,
                 title = resolvedAlbumTitle(first.album),
                 artist = albumGroupingArtist(albumArtist = null, trackArtist = first.artist),
                 songCount = groupedSongs.size,
                 totalDurationMs = groupedSongs.sumOf { it.durationMs },
-                artworkUri = groupedSongs.firstNotNullOfOrNull { it.artworkUri },
+                artworkUri = artworkUri,
                 sortKey = first.albumSortKey,
             )
         }
@@ -86,12 +88,14 @@ internal fun buildArtists(songs: List<SongEntity>): List<ArtistEntity> =
     songs.groupBy { artistGroupingKey(it.artist) }
         .map { (key, groupedSongs) ->
             val first = groupedSongs.first()
+            val artworkUri = groupedSongs.sortedWith(persistedArtistArtworkComparator)
+                .firstNotNullOfOrNull(SongEntity::artworkUri)
             ArtistEntity(
                 id = key,
                 name = resolvedTrackArtist(first.artist),
                 songCount = groupedSongs.size,
                 totalDurationMs = groupedSongs.sumOf { it.durationMs },
-                artworkUri = groupedSongs.firstNotNullOfOrNull { it.artworkUri },
+                artworkUri = artworkUri,
                 sortKey = resolvedTrackArtist(first.artist).normalizedGroupingKey(),
             )
         }
@@ -148,3 +152,13 @@ internal fun SongEntity.asScannedSong(): ScannedSong =
 
 // Retain the accepted Baseline Profile symbol while sharing Q3.1 normalization authority.
 private fun String.normalizedSortKey(): String = normalizedGroupingKey()
+
+private val persistedAlbumArtworkComparator: Comparator<SongEntity> =
+    compareBy<SongEntity> { it.discNumber ?: Int.MAX_VALUE }
+        .thenBy { it.trackNumber ?: Int.MAX_VALUE }
+        .thenBy(SongEntity::titleSortKey)
+        .thenBy(SongEntity::id)
+
+private val persistedArtistArtworkComparator: Comparator<SongEntity> =
+    compareBy<SongEntity>(SongEntity::albumSortKey)
+        .then(persistedAlbumArtworkComparator)

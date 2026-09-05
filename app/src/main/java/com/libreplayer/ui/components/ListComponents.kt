@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.libreplayer.data.repository.Album
+import com.libreplayer.data.repository.ArtworkCandidate
 import com.libreplayer.data.repository.Artist
 import com.libreplayer.data.repository.PlaybackUiState
 import com.libreplayer.data.repository.UserPlaylist
@@ -45,6 +46,8 @@ fun SongRow(
     durationMs: Long,
     artworkUri: String?,
     fallbackArtworkUri: String? = null,
+    artworkCandidates: List<ArtworkCandidate> = emptyList(),
+    sourceRevisionEpochSeconds: Long = 0L,
     modifier: Modifier = Modifier,
     supportingText: String? = null,
     trailingContent: @Composable (() -> Unit)? = null,
@@ -60,6 +63,8 @@ fun SongRow(
         ArtworkThumbnail(
             artworkUri = artworkUri,
             fallbackArtworkUri = fallbackArtworkUri,
+            artworkCandidates = artworkCandidates,
+            sourceRevisionEpochSeconds = sourceRevisionEpochSeconds,
             fallbackText = title,
             variant = ArtworkVariant.LIST,
             modifier = Modifier.size(56.dp),
@@ -117,6 +122,7 @@ fun AlbumRow(
         durationMs = album.totalDurationMs,
         artworkUri = album.artworkUri,
         fallbackArtworkUri = album.artworkFallbackUri,
+        artworkCandidates = album.artworkCandidates,
         modifier = modifier,
         onClick = onClick,
     )
@@ -134,6 +140,7 @@ fun ArtistRow(
         durationMs = artist.totalDurationMs,
         artworkUri = artist.artworkUri,
         fallbackArtworkUri = artist.artworkFallbackUri,
+        artworkCandidates = artist.artworkCandidates,
         modifier = modifier,
         onClick = onClick,
     )
@@ -270,6 +277,7 @@ fun MiniPlayer(
             ArtworkThumbnail(
                 artworkUri = currentSong.artworkUri,
                 fallbackArtworkUri = currentSong.contentUri,
+                sourceRevisionEpochSeconds = currentSong.dateModifiedEpochSeconds,
                 fallbackText = currentSong.resolvedTitle,
                 variant = ArtworkVariant.MINI,
                 modifier = Modifier.size(48.dp),

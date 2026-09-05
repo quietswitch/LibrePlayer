@@ -89,6 +89,7 @@ fun SearchScreen(
                             durationMs = song.durationMs,
                             artworkUri = song.artworkUri,
                             fallbackArtworkUri = song.contentUri,
+                            sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
                             trailingContent = {
                                 SongOverflowMenu(
                                     song = song,
@@ -307,6 +308,7 @@ private fun ArtistCollectionScreen(
                         durationMs = song.durationMs,
                         artworkUri = song.artworkUri,
                         fallbackArtworkUri = song.contentUri,
+                        sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
                         trailingContent = {
                             SongOverflowMenu(
                                 song = song,
@@ -396,6 +398,7 @@ private fun DetailSongsScreen(
                         durationMs = song.durationMs,
                         artworkUri = song.artworkUri,
                         fallbackArtworkUri = song.contentUri,
+                        sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
                         trailingContent = {
                             SongOverflowMenu(
                                 song = song,
@@ -470,6 +473,7 @@ fun PlaylistDetailScreen(
                         durationMs = song.durationMs,
                         artworkUri = song.artworkUri,
                         fallbackArtworkUri = song.contentUri,
+                        sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
                         trailingContent = {
                             PlaylistSongOverflowMenu(
                                 editable = playlistId >= 0L && onRemoveSong != null && onMoveSong != null,

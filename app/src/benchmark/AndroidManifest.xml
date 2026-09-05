@@ -13,6 +13,11 @@
             android:exported="true" />
 
         <provider
+            android:name=".benchmark.ArtworkFixtureDocumentProvider"
+            android:authorities="${applicationId}.artwork-fixture-document"
+            android:exported="false" />
+
+        <provider
             android:name=".benchmark.PlaybackLoadProbeProvider"
             android:authorities="${applicationId}.playback-load-probe"
             android:exported="true" />

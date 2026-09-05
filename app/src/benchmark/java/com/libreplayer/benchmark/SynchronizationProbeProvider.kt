@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.media3.common.MediaItem
 import com.libreplayer.app.LibrePlayerApplication
 import com.libreplayer.data.repository.Album
+import com.libreplayer.data.repository.ArtworkCandidate
 import com.libreplayer.data.repository.Artist
 import com.libreplayer.data.repository.LibrarySortOption
 import com.libreplayer.data.repository.Song
@@ -27,6 +28,13 @@ import com.libreplayer.library.semantics.sortAlbumTracks
 import com.libreplayer.library.semantics.sortSongs
 import com.libreplayer.media.playback.PlaybackConnection
 import com.libreplayer.navigation.AppRoute
+import com.libreplayer.ui.components.ArtworkLoadResult
+import com.libreplayer.ui.components.ArtworkLoader
+import com.libreplayer.ui.components.ArtworkRequest
+import com.libreplayer.ui.components.ArtworkSourceResolver
+import com.libreplayer.ui.components.ArtworkVariant
+import com.libreplayer.ui.screens.enrichAlbumsWithArtwork
+import com.libreplayer.ui.screens.enrichArtistsWithArtwork
 import com.libreplayer.util.LibrarySearchEngine
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
@@ -49,9 +57,21 @@ class SynchronizationProbeProvider : ContentProvider() {
             METHOD_Q32_SYNC -> traced { repository.rescanLibrary() }
             METHOD_Q33_SYNC -> traced { repository.rescanLibrary() }
             METHOD_Q34_SYNC -> traced { repository.rescanLibrary() }
+            METHOD_Q35_SYNC -> traced { repository.rescanLibrary() }
+            METHOD_Q35_ADD_SAF -> traced {
+                repository.addImportedRoot(
+                    ArtworkFixtureDocumentProvider.FIXTURE_URI,
+                    ArtworkFixtureDocumentProvider.SAF_FILE,
+                )
+            }
+            METHOD_Q35_REMOVE_SAF -> traced {
+                repository.removeImportedRoot(ArtworkFixtureDocumentProvider.FIXTURE_URI)
+            }
             METHOD_CATALOG -> Unit
             METHOD_Q33_SELECTION -> Unit
             METHOD_Q34_PLAY -> Unit
+            METHOD_Q35_CATALOG, METHOD_Q35_LOAD, METHOD_Q35_PLAY -> Unit
+            METHOD_Q35_CLEAR_CACHE -> ArtworkLoader.clearMemoryCache()
             else -> error("Unsupported synchronization probe method: $method")
         }
         val elapsedNanos = SystemClock.elapsedRealtimeNanos() - startedNanos
@@ -71,6 +91,14 @@ class SynchronizationProbeProvider : ContentProvider() {
             METHOD_Q33_SELECTION -> q33SelectionBundle(container.playbackConnection.uiState.value)
             METHOD_Q34_SYNC -> q34CatalogBundle(songs, elapsedNanos)
             METHOD_Q34_PLAY -> q34PlayBundle(container.playbackConnection, songs)
+            METHOD_Q35_SYNC,
+            METHOD_Q35_ADD_SAF,
+            METHOD_Q35_REMOVE_SAF,
+            METHOD_Q35_CATALOG,
+            METHOD_Q35_CLEAR_CACHE,
+            -> q35CatalogBundle(songs, elapsedNanos)
+            METHOD_Q35_LOAD -> q35LoadBundle(songs, arg, extras)
+            METHOD_Q35_PLAY -> q35PlayBundle(container.playbackConnection, songs, arg)
             else -> catalogBundle(songs, elapsedNanos, arg)
         }
     }
@@ -382,6 +410,175 @@ class SynchronizationProbeProvider : ContentProvider() {
         }
     }
 
+    /** Exact Q3.5 presentation projection from the current real repository snapshot. */
+    private fun q35CatalogBundle(allSongs: List<Song>, elapsedNanos: Long): Bundle {
+        val songs = q35Songs(allSongs)
+        val albums = enrichAlbumsWithArtwork(buildBrowseAlbums(songs), songs)
+        val artists = enrichArtistsWithArtwork(buildBrowseArtists(songs), songs)
+        val fingerprintLines = buildList {
+            songs.forEach { song ->
+                add(
+                    listOf(
+                        song.id,
+                        song.sourceType.name,
+                        song.contentUri,
+                        song.artworkUri ?: NULL_MARKER,
+                        song.dateModifiedEpochSeconds.toString(),
+                        song.albumBrowseGroupId(),
+                    ).joinToString(FINGERPRINT_SEPARATOR),
+                )
+            }
+            albums.forEach { album ->
+                add(
+                    listOf(
+                        album.id,
+                        album.artworkUri ?: NULL_MARKER,
+                        ArtworkSourceResolver.cacheKey(album.artworkCandidates, ArtworkVariant.LIST),
+                    ).joinToString(FINGERPRINT_SEPARATOR),
+                )
+            }
+        }
+        val greatestA = songs.singleOrNull { it.displayName == Q35_GREATEST_A_FILE }
+        val greatestB = songs.singleOrNull { it.displayName == Q35_GREATEST_B_FILE }
+        val selected = songs.firstOrNull {
+            it.sourceType == SongSourceType.MEDIA_STORE && it.displayName == Q35_NORMAL_FILE
+        }
+        val selectedMediaItem = selected?.toProductionMediaItem()
+        return Bundle().apply {
+            putLong(KEY_ELAPSED_NANOS, elapsedNanos)
+            putInt(KEY_Q35_MEDIASTORE_COUNT, songs.count { it.sourceType == SongSourceType.MEDIA_STORE })
+            putInt(KEY_Q35_DOCUMENT_COUNT, songs.count { it.sourceType == SongSourceType.DOCUMENT })
+            putStringArray(KEY_Q35_FILES, songs.map(Song::displayName).toTypedArray())
+            putStringArray(KEY_Q35_IDS, songs.map(Song::id).toTypedArray())
+            putStringArray(KEY_Q35_URIS, songs.map(Song::contentUri).toTypedArray())
+            putStringArray(KEY_Q35_ARTWORK_URIS, songs.map { it.artworkUri ?: NULL_MARKER }.toTypedArray())
+            putLongArray(KEY_Q35_REVISIONS, songs.map(Song::dateModifiedEpochSeconds).toLongArray())
+            putStringArray(KEY_Q35_ALBUM_IDS, songs.map(Song::albumBrowseGroupId).toTypedArray())
+            putStringArray(KEY_Q35_AGGREGATE_IDS, albums.map(Album::id).toTypedArray())
+            putStringArray(KEY_Q35_AGGREGATE_TITLES, albums.map(Album::title).toTypedArray())
+            putStringArray(KEY_Q35_AGGREGATE_ARTISTS, albums.map { it.artist.orEmpty() }.toTypedArray())
+            putStringArray(
+                KEY_Q35_AGGREGATE_CANDIDATES,
+                albums.map { album -> album.artworkCandidates.joinToString(FILE_SEPARATOR) { it.uri } }.toTypedArray(),
+            )
+            putStringArray(
+                KEY_Q35_ARTIST_CANDIDATES,
+                artists.map { artist -> artist.artworkCandidates.joinToString(FILE_SEPARATOR) { it.uri } }.toTypedArray(),
+            )
+            putString(KEY_Q35_GREATEST_A_ID, greatestA?.albumBrowseGroupId())
+            putString(KEY_Q35_GREATEST_B_ID, greatestB?.albumBrowseGroupId())
+            putString(KEY_Q35_SELECTED_ID, selected?.id)
+            putString(KEY_Q35_SELECTED_URI, selected?.contentUri)
+            putString(KEY_Q35_SELECTED_MEDIA_ID, selectedMediaItem?.mediaId)
+            putString(KEY_Q35_SELECTED_MEDIA_URI, selectedMediaItem?.localConfiguration?.uri?.toString())
+            putString(KEY_Q35_SELECTED_MEDIA_ARTWORK_URI, selectedMediaItem?.mediaMetadata?.artworkUri?.toString())
+            putString(KEY_Q35_FINGERPRINT, identityFingerprint(fingerprintLines))
+            putInt(KEY_Q35_CACHE_BYTES, ArtworkLoader.cacheSizeBytes())
+            putInt(KEY_Q35_CACHE_MAX_BYTES, ArtworkLoader.maxCacheBytes)
+        }
+    }
+
+    private suspend fun q35LoadBundle(
+        allSongs: List<Song>,
+        fileName: String?,
+        extras: Bundle?,
+    ): Bundle {
+        val songs = q35Songs(allSongs)
+        val sourceType = extras?.getString(KEY_Q35_LOAD_SOURCE)
+        val song = songs.single { candidate ->
+            candidate.displayName == fileName &&
+                when (sourceType) {
+                    Q35_SOURCE_DOCUMENT -> candidate.sourceType == SongSourceType.DOCUMENT
+                    else -> candidate.sourceType == SongSourceType.MEDIA_STORE
+                }
+        }
+        val variant = extras?.getString(KEY_Q35_LOAD_VARIANT)
+            ?.let(ArtworkVariant::valueOf)
+            ?: ArtworkVariant.LIST
+        val kind = extras?.getString(KEY_Q35_LOAD_KIND) ?: Q35_KIND_SONG
+        val candidates = when (kind) {
+            Q35_KIND_ALBUM -> {
+                val albums = enrichAlbumsWithArtwork(buildBrowseAlbums(songs), songs)
+                albums.single { it.id == song.albumBrowseGroupId() }.artworkCandidates
+            }
+            else -> ArtworkSourceResolver.selectCandidates(
+                artworkUri = song.artworkUri,
+                fallbackArtworkUri = song.contentUri,
+                sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
+            )
+        }
+        val request = ArtworkRequest(candidates, variant)
+        val result = ArtworkLoader.load(requireNotNull(context), request)
+        return Bundle().apply {
+            putString(KEY_Q35_LOAD_ID, song.id)
+            putString(KEY_Q35_LOAD_URI, song.contentUri)
+            putString(KEY_Q35_LOAD_CACHE_KEY, request.cacheKey)
+            putStringArray(KEY_Q35_LOAD_CANDIDATES, candidates.map(ArtworkCandidate::uri).toTypedArray())
+            when (result) {
+                ArtworkLoadResult.Loading -> putString(KEY_Q35_LOAD_STATUS, "loading")
+                ArtworkLoadResult.Missing -> putString(KEY_Q35_LOAD_STATUS, "missing")
+                ArtworkLoadResult.Failed -> putString(KEY_Q35_LOAD_STATUS, "failed")
+                is ArtworkLoadResult.Loaded -> {
+                    val bitmap = result.bitmap
+                    val pixel = bitmap.getPixel(bitmap.width / 2, bitmap.height / 2)
+                    putString(KEY_Q35_LOAD_STATUS, "loaded")
+                    putString(KEY_Q35_LOAD_WINNER, result.candidate.uri)
+                    putInt(KEY_Q35_LOAD_WIDTH, bitmap.width)
+                    putInt(KEY_Q35_LOAD_HEIGHT, bitmap.height)
+                    putInt(KEY_Q35_LOAD_ALLOCATION_BYTES, bitmap.allocationByteCount)
+                    putInt(KEY_Q35_LOAD_RED, android.graphics.Color.red(pixel))
+                    putInt(KEY_Q35_LOAD_GREEN, android.graphics.Color.green(pixel))
+                    putInt(KEY_Q35_LOAD_BLUE, android.graphics.Color.blue(pixel))
+                }
+            }
+            putInt(KEY_Q35_CACHE_BYTES, ArtworkLoader.cacheSizeBytes())
+            putInt(KEY_Q35_CACHE_MAX_BYTES, ArtworkLoader.maxCacheBytes)
+        }
+    }
+
+    private suspend fun q35PlayBundle(
+        connection: PlaybackConnection,
+        allSongs: List<Song>,
+        fileName: String?,
+    ): Bundle {
+        val selected = q35Songs(allSongs).single { song ->
+            song.sourceType == SongSourceType.MEDIA_STORE && song.displayName == fileName
+        }
+        val mediaItem = selected.toProductionMediaItem()
+        withContext(Dispatchers.Main.immediate) {
+            connection.playSong(listOf(selected), 0)
+        }
+        val deadline = SystemClock.elapsedRealtime() + Q35_PLAY_TIMEOUT_MS
+        var state = connection.uiState.value
+        while (
+            SystemClock.elapsedRealtime() < deadline &&
+            (state.currentSong?.id != selected.id || (!state.isPlaying && state.errorMessage == null))
+        ) {
+            delay(Q35_PLAY_POLL_MS)
+            state = connection.uiState.value
+        }
+        return Bundle().apply {
+            putString(KEY_Q35_SELECTED_ID, selected.id)
+            putString(KEY_Q35_SELECTED_URI, selected.contentUri)
+            putString(KEY_Q35_SELECTED_MEDIA_ID, mediaItem.mediaId)
+            putString(KEY_Q35_SELECTED_MEDIA_URI, mediaItem.localConfiguration?.uri?.toString())
+            putString(KEY_Q35_SELECTED_MEDIA_ARTWORK_URI, mediaItem.mediaMetadata.artworkUri?.toString())
+            putString(KEY_Q35_PLAY_CURRENT_ID, state.currentSong?.id)
+            putString(KEY_Q35_PLAY_CURRENT_URI, state.currentSong?.contentUri)
+            putBoolean(KEY_Q35_PLAY_IS_PLAYING, state.isPlaying)
+            putString(KEY_Q35_PLAY_ERROR, state.errorMessage)
+        }
+    }
+
+    private fun q35Songs(allSongs: List<Song>): List<Song> =
+        allSongs.filter { song ->
+            (
+                song.sourceType == SongSourceType.MEDIA_STORE &&
+                    song.relativePath?.replace('\\', '/')?.startsWith(Q35_RELATIVE_ROOT) == true
+                ) ||
+                Uri.parse(song.contentUri).authority == ArtworkFixtureDocumentProvider.AUTHORITY
+        }.sortedWith(compareBy<Song>({ it.sourceType.name }, Song::displayName, Song::id))
+
     private fun identityFingerprint(identities: List<String>): String {
         val digest = MessageDigest.getInstance("SHA-256")
         identities.forEach { identity ->
@@ -429,6 +626,13 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val METHOD_Q33_SELECTION = "q3.3-selection"
         const val METHOD_Q34_SYNC = "q3.4-sync"
         const val METHOD_Q34_PLAY = "q3.4-play"
+        const val METHOD_Q35_SYNC = "q3.5-sync"
+        const val METHOD_Q35_CATALOG = "q3.5-catalog"
+        const val METHOD_Q35_LOAD = "q3.5-load"
+        const val METHOD_Q35_PLAY = "q3.5-play"
+        const val METHOD_Q35_ADD_SAF = "q3.5-add-saf"
+        const val METHOD_Q35_REMOVE_SAF = "q3.5-remove-saf"
+        const val METHOD_Q35_CLEAR_CACHE = "q3.5-clear-cache"
         const val KEY_ELAPSED_NANOS = "elapsedNanos"
         const val KEY_FIXTURE_COUNT = "fixtureCount"
         const val KEY_UNIQUE_IDENTITIES = "uniqueIdentities"
@@ -541,11 +745,54 @@ class SynchronizationProbeProvider : ContentProvider() {
         const val KEY_Q34_PLAY_CURRENT_URI = "q34PlayCurrentUri"
         const val KEY_Q34_PLAY_IS_PLAYING = "q34PlayIsPlaying"
         const val KEY_Q34_PLAY_ERROR = "q34PlayError"
+        const val KEY_Q35_MEDIASTORE_COUNT = "q35MediaStoreCount"
+        const val KEY_Q35_DOCUMENT_COUNT = "q35DocumentCount"
+        const val KEY_Q35_FILES = "q35Files"
+        const val KEY_Q35_IDS = "q35Ids"
+        const val KEY_Q35_URIS = "q35Uris"
+        const val KEY_Q35_ARTWORK_URIS = "q35ArtworkUris"
+        const val KEY_Q35_REVISIONS = "q35Revisions"
+        const val KEY_Q35_ALBUM_IDS = "q35AlbumIds"
+        const val KEY_Q35_AGGREGATE_IDS = "q35AggregateIds"
+        const val KEY_Q35_AGGREGATE_TITLES = "q35AggregateTitles"
+        const val KEY_Q35_AGGREGATE_ARTISTS = "q35AggregateArtists"
+        const val KEY_Q35_AGGREGATE_CANDIDATES = "q35AggregateCandidates"
+        const val KEY_Q35_ARTIST_CANDIDATES = "q35ArtistCandidates"
+        const val KEY_Q35_GREATEST_A_ID = "q35GreatestAId"
+        const val KEY_Q35_GREATEST_B_ID = "q35GreatestBId"
+        const val KEY_Q35_SELECTED_ID = "q35SelectedId"
+        const val KEY_Q35_SELECTED_URI = "q35SelectedUri"
+        const val KEY_Q35_SELECTED_MEDIA_ID = "q35SelectedMediaId"
+        const val KEY_Q35_SELECTED_MEDIA_URI = "q35SelectedMediaUri"
+        const val KEY_Q35_SELECTED_MEDIA_ARTWORK_URI = "q35SelectedMediaArtworkUri"
+        const val KEY_Q35_FINGERPRINT = "q35Fingerprint"
+        const val KEY_Q35_LOAD_KIND = "q35LoadKind"
+        const val KEY_Q35_LOAD_SOURCE = "q35LoadSource"
+        const val KEY_Q35_LOAD_VARIANT = "q35LoadVariant"
+        const val KEY_Q35_LOAD_ID = "q35LoadId"
+        const val KEY_Q35_LOAD_URI = "q35LoadUri"
+        const val KEY_Q35_LOAD_STATUS = "q35LoadStatus"
+        const val KEY_Q35_LOAD_WINNER = "q35LoadWinner"
+        const val KEY_Q35_LOAD_CACHE_KEY = "q35LoadCacheKey"
+        const val KEY_Q35_LOAD_CANDIDATES = "q35LoadCandidates"
+        const val KEY_Q35_LOAD_WIDTH = "q35LoadWidth"
+        const val KEY_Q35_LOAD_HEIGHT = "q35LoadHeight"
+        const val KEY_Q35_LOAD_ALLOCATION_BYTES = "q35LoadAllocationBytes"
+        const val KEY_Q35_LOAD_RED = "q35LoadRed"
+        const val KEY_Q35_LOAD_GREEN = "q35LoadGreen"
+        const val KEY_Q35_LOAD_BLUE = "q35LoadBlue"
+        const val KEY_Q35_CACHE_BYTES = "q35CacheBytes"
+        const val KEY_Q35_CACHE_MAX_BYTES = "q35CacheMaxBytes"
+        const val KEY_Q35_PLAY_CURRENT_ID = "q35PlayCurrentId"
+        const val KEY_Q35_PLAY_CURRENT_URI = "q35PlayCurrentUri"
+        const val KEY_Q35_PLAY_IS_PLAYING = "q35PlayIsPlaying"
+        const val KEY_Q35_PLAY_ERROR = "q35PlayError"
         const val LOG_TAG = "LibrePlayerSyncProbe"
         private const val FIXTURE_RELATIVE_ROOT = "Music/LibrePlayerBenchmark/MEDIUM/"
         private const val Q31_RELATIVE_ROOT = "Music/LibrePlayerQ31/"
         private const val Q32_RELATIVE_ROOT = "Music/LibrePlayerQ32/"
         private const val Q34_RELATIVE_ROOT = "Music/LibrePlayerBenchmark/Q34_METADATA_PATHOLOGY/"
+        private const val Q35_RELATIVE_ROOT = "Music/LibrePlayerBenchmark/Q35_ARTWORK_AUTHORITY/"
         private const val Q32_SELECTED_FILE = "AlphaB1.mp3"
         private const val Q32_SPECIAL_FILE = "Special.mp3"
         private const val Q34_SELECTED_FILE = "05-unicode-precomposed.mp3"
@@ -554,6 +801,14 @@ class SynchronizationProbeProvider : ContentProvider() {
         private const val Q34_PLAYABLE_MALFORMED_FILE = "11-malformed-playable.mp3"
         private const val Q34_PLAY_TIMEOUT_MS = 10_000L
         private const val Q34_PLAY_POLL_MS = 50L
+        private const val Q35_NORMAL_FILE = "01-normal-jpeg.mp3"
+        private const val Q35_GREATEST_A_FILE = "07-greatest-a.mp3"
+        private const val Q35_GREATEST_B_FILE = "08-greatest-b.mp3"
+        private const val Q35_KIND_SONG = "song"
+        private const val Q35_KIND_ALBUM = "album"
+        private const val Q35_SOURCE_DOCUMENT = "document"
+        private const val Q35_PLAY_TIMEOUT_MS = 10_000L
+        private const val Q35_PLAY_POLL_MS = 50L
         private const val NULL_MARKER = "<null>"
         private const val FINGERPRINT_SEPARATOR = "\u001E"
         private const val FILE_SEPARATOR = "\u001F"

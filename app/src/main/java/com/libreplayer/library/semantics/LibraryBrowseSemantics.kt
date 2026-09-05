@@ -2,6 +2,7 @@ package com.libreplayer.library.semantics
 
 import com.libreplayer.data.repository.Album
 import com.libreplayer.data.repository.Artist
+import com.libreplayer.data.repository.LibrarySortOption
 import com.libreplayer.data.repository.Song
 
 /** Q3.2 authority for mapping one source occurrence into its album browse group. */
@@ -35,13 +36,14 @@ internal fun buildBrowseAlbums(songs: List<Song>): List<Album> =
         songs.groupBy(Song::albumBrowseGroupId)
             .map { (id, members) ->
                 val first = members.first()
+                val artworkUri = sortAlbumTracks(members).firstNotNullOfOrNull(Song::artworkUri)
                 Album(
                     id = id,
                     title = resolvedAlbumTitle(first.album),
                     artist = albumGroupingArtist(albumArtist = null, trackArtist = first.artist),
                     songCount = members.size,
                     totalDurationMs = members.sumOf(Song::durationMs),
-                    artworkUri = members.firstNotNullOfOrNull(Song::artworkUri),
+                    artworkUri = artworkUri,
                 )
             },
     )
@@ -51,12 +53,14 @@ internal fun buildBrowseArtists(songs: List<Song>): List<Artist> =
         songs.groupBy(Song::artistBrowseGroupId)
             .map { (id, members) ->
                 val first = members.first()
+                val artworkUri = sortSongs(members, LibrarySortOption.ALBUM)
+                    .firstNotNullOfOrNull(Song::artworkUri)
                 Artist(
                     id = id,
                     name = resolvedTrackArtist(first.artist),
                     songCount = members.size,
                     totalDurationMs = members.sumOf(Song::durationMs),
-                    artworkUri = members.firstNotNullOfOrNull(Song::artworkUri),
+                    artworkUri = artworkUri,
                 )
             },
     )

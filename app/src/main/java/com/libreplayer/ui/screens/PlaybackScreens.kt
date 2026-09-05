@@ -127,6 +127,7 @@ fun NowPlayingScreen(
             ArtworkThumbnail(
                 artworkUri = song.artworkUri,
                 fallbackArtworkUri = song.contentUri,
+                sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
                 fallbackText = displayTitle(song, settings),
                 variant = ArtworkVariant.FULL,
                 modifier = Modifier
@@ -293,6 +294,7 @@ fun PlaybackQueueScreen(
                         durationMs = song.durationMs,
                         artworkUri = song.artworkUri,
                         fallbackArtworkUri = song.contentUri,
+                        sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
                         onClick = { onPlaySongAt(index) },
                     )
                     DividerItem()

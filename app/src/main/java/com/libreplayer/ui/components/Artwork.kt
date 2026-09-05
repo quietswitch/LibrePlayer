@@ -22,32 +22,53 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
+import com.libreplayer.data.repository.ArtworkCandidate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 
 @Composable
 internal fun ArtworkThumbnail(
     artworkUri: String?,
     fallbackArtworkUri: String? = null,
+    artworkCandidates: List<ArtworkCandidate> = emptyList(),
+    sourceRevisionEpochSeconds: Long = 0L,
     fallbackText: String,
     variant: ArtworkVariant = ArtworkVariant.LIST,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val request = remember(artworkUri, fallbackArtworkUri, variant) {
+    val request = remember(
+        artworkUri,
+        fallbackArtworkUri,
+        artworkCandidates,
+        sourceRevisionEpochSeconds,
+        variant,
+    ) {
+        val candidates = if (artworkCandidates.isNotEmpty()) {
+            ArtworkSourceResolver.mergeCandidates(artworkCandidates)
+        } else {
+            ArtworkSourceResolver.selectCandidates(
+                artworkUri = artworkUri,
+                fallbackArtworkUri = fallbackArtworkUri,
+                sourceRevisionEpochSeconds = sourceRevisionEpochSeconds,
+            )
+        }
         ArtworkRequest(
-            artworkUri = artworkUri,
-            fallbackArtworkUri = fallbackArtworkUri,
+            candidates = candidates,
             variant = variant,
         )
     }
-    val bitmap by produceState<Bitmap?>(initialValue = null, request) {
+    val result by produceState<ArtworkLoadResult>(initialValue = ArtworkLoadResult.Loading, request) {
         value = ArtworkLoader.load(context, request)
     }
+    val bitmap = (result as? ArtworkLoadResult.Loaded)?.bitmap
 
     if (bitmap != null) {
         Image(
-            bitmap = bitmap!!.asImageBitmap(),
+            bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
             modifier = modifier,
             contentScale = ContentScale.Crop,
@@ -67,37 +88,77 @@ internal fun ArtworkThumbnail(
     }
 }
 
-private object ArtworkLoader {
-    private val cache = LruCache<String, Bitmap>(64)
+internal sealed interface ArtworkLoadResult {
+    data object Loading : ArtworkLoadResult
+    data object Missing : ArtworkLoadResult
+    data object Failed : ArtworkLoadResult
+    data class Loaded(
+        val bitmap: Bitmap,
+        val candidate: ArtworkCandidate,
+    ) : ArtworkLoadResult
+}
 
-    suspend fun load(context: Context, request: ArtworkRequest): Bitmap? {
-        if (request.candidateUris.isEmpty()) return null
-        cache.get(request.cacheKey)?.let { return it }
+internal object ArtworkLoader {
+    internal val maxCacheBytes: Int =
+        (Runtime.getRuntime().maxMemory() / CACHE_MEMORY_DIVISOR)
+            .coerceIn(MIN_CACHE_BYTES.toLong(), MAX_CACHE_BYTES.toLong())
+            .toInt()
+
+    private val cache = object : LruCache<String, CachedArtwork>(maxCacheBytes) {
+        override fun sizeOf(key: String, value: CachedArtwork): Int =
+            value.bitmap.allocationByteCount.coerceAtLeast(1)
+    }
+
+    suspend fun load(context: Context, request: ArtworkRequest): ArtworkLoadResult {
+        if (request.candidates.isEmpty()) return ArtworkLoadResult.Missing
+        cache.get(request.cacheKey)?.let { cached ->
+            return ArtworkLoadResult.Loaded(cached.bitmap, cached.candidate)
+        }
 
         return withContext(Dispatchers.IO) {
-            val bitmap = request.candidateUris.firstNotNullOfOrNull { candidate ->
-                val uri = Uri.parse(candidate)
-                runCatching {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            request.candidates.forEach { candidate ->
+                coroutineContext.ensureActive()
+                val uri = Uri.parse(candidate.uri)
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
                         context.contentResolver.loadThumbnail(
                             uri,
                             android.util.Size(request.variant.targetSizePx, request.variant.targetSizePx),
                             null,
                         )
-                    } else {
-                        embeddedBitmap(context, uri, request.variant.targetSizePx)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (_: Exception) {
+                        embeddedBitmapOrNull(context, uri, request.variant.targetSizePx)
                     }
-                }.recoverCatching {
-                    embeddedBitmap(context, uri, request.variant.targetSizePx)
-                }.getOrNull()
+                } else {
+                    embeddedBitmapOrNull(context, uri, request.variant.targetSizePx)
+                }
+                if (bitmap != null) {
+                    cache.put(request.cacheKey, CachedArtwork(bitmap, candidate))
+                    return@withContext ArtworkLoadResult.Loaded(bitmap, candidate)
+                }
             }
-
-            if (bitmap != null) {
-                cache.put(request.cacheKey, bitmap)
-            }
-            bitmap
+            ArtworkLoadResult.Failed
         }
     }
+
+    internal fun clearMemoryCache() = cache.evictAll()
+
+    internal fun cacheSizeBytes(): Int = cache.size()
+
+    private fun embeddedBitmapOrNull(
+        context: Context,
+        uri: Uri,
+        targetSizePx: Int,
+    ): Bitmap? =
+        try {
+            embeddedBitmap(context, uri, targetSizePx)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Exception) {
+            null
+        }
 
     private fun embeddedBitmap(
         context: Context,
@@ -124,7 +185,7 @@ private object ArtworkLoader {
         }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         val options = BitmapFactory.Options().apply {
-            inSampleSize = calculateInSampleSize(
+            inSampleSize = ArtworkDecodePolicy.calculateInSampleSize(
                 width = bounds.outWidth,
                 height = bounds.outHeight,
                 targetSizePx = targetSizePx,
@@ -133,20 +194,12 @@ private object ArtworkLoader {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
-    private fun calculateInSampleSize(
-        width: Int,
-        height: Int,
-        targetSizePx: Int,
-    ): Int {
-        if (width <= 0 || height <= 0 || targetSizePx <= 0) return 1
-        var sampleSize = 1
-        var sampledWidth = width
-        var sampledHeight = height
-        while (sampledWidth / 2 >= targetSizePx && sampledHeight / 2 >= targetSizePx) {
-            sampleSize *= 2
-            sampledWidth /= 2
-            sampledHeight /= 2
-        }
-        return sampleSize.coerceAtLeast(1)
-    }
+    private const val CACHE_MEMORY_DIVISOR = 16L
+    private const val MIN_CACHE_BYTES = 4 * 1024 * 1024
+    private const val MAX_CACHE_BYTES = 24 * 1024 * 1024
+
+    private data class CachedArtwork(
+        val bitmap: Bitmap,
+        val candidate: ArtworkCandidate,
+    )
 }
