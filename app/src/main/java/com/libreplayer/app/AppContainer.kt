@@ -2,6 +2,7 @@ package com.libreplayer.app
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.withTransaction
 import com.libreplayer.data.database.AppDatabase
 import com.libreplayer.data.repository.DefaultLibraryRepository
 import com.libreplayer.data.repository.LibraryRefreshStore
@@ -13,6 +14,7 @@ import com.libreplayer.library.details.AudioDetailsRepository
 import com.libreplayer.library.details.DefaultAudioDetailsRepository
 import com.libreplayer.library.metadata.AudioMetadataReader
 import com.libreplayer.library.scanner.DeviceLibraryScanner
+import com.libreplayer.library.playlist.PlaylistInterchange
 import com.libreplayer.media.playback.PlaybackConnection
 import com.libreplayer.media.playback.PlaybackSnapshotStore
 import com.libreplayer.settings.SettingsRepository
@@ -46,6 +48,7 @@ class AppContainer(context: Context) {
         DefaultPlaylistRepository(
             playlistQueries = database.playlistDao(),
             songLookupQueries = database.songDao(),
+            transaction = { block -> database.withTransaction { block() } },
         )
     }
 
@@ -55,6 +58,10 @@ class AppContainer(context: Context) {
             playbackConnection = playbackConnection,
             audioDetailsReader = audioDetailsReader,
         )
+    }
+
+    internal val playlistInterchange by lazy {
+        PlaylistInterchange(appContext.contentResolver, libraryRepository, playlistRepository)
     }
 
     val playbackConnection: PlaybackConnection by lazy {

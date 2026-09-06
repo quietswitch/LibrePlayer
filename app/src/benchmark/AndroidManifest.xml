@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application>
+        <provider
+            android:name=".benchmark.PlaylistAuthorityProbeProvider"
+            android:authorities="${applicationId}.playlist-authority"
+            android:exported="true" />
         <profileable
             android:shell="true"
             tools:targetApi="29" />

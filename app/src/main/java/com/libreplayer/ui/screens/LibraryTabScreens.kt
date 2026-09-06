@@ -466,6 +466,7 @@ fun PlaylistsScreen(
             TopAppBar(
                 title = { Text("Playlists") },
                 actions = {
+                    PlaylistFileActions(libraryState.playlists)
                     IconButton(onClick = onSearch) {
                         Icon(Icons.Filled.Search, contentDescription = "Search library")
                     }

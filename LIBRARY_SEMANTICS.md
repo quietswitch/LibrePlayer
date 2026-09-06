@@ -1,6 +1,6 @@
 # LibrePlayer Library Semantics
 
-This document is the Q3.1 authority for local-library identity and metadata, the Q3.2 authority for browse-group membership, the Q3.3 authority for sorting and local search, and the Q3.4 authority for metadata pathology. It describes the current Room schema (version 1), ingestion, browsing, ordering, filtering, and bounded adversarial-metadata behavior. It does not introduce a schema migration.
+This document covers Q3.1 identity/metadata, Q3.2 browse grouping, Q3.3 sorting/search, Q3.4 metadata pathology, Q3.5 artwork, and Q3.6 playlists/local M3U interchange. It describes the current Room schema (version 1) without introducing a schema migration.
 
 ## Physical and logical song identity
 
@@ -266,6 +266,66 @@ The accepted Baseline Profile source remains unchanged and its binary profile as
 | A14 SAF | Local document URI, embedded extraction, identity, and cleanup | Correct and covered on the benchmark provider |
 
 Android and OEM thumbnail selection, multiple APIC-frame precedence, platform cache internals, and formats beyond tested JPEG, PNG, and static WebP are platform-limited and not claimed. Q3.5 does not add online artwork retrieval, remote URLs, artwork editing or repair, permanent extracted-cover storage, palette/dominant-color theming, animated-art authority, a custom codec, fuzzy metadata matching, M3U behavior, huge-library/removable-storage matrices, new browse surfaces, or broader visual/accessibility redesign.
+
+## Playlist & M3U semantics
+
+### Internal playlist identity and naming
+
+An internal playlist is ordered user data identified by the existing auto-generated `PlaylistEntity.id` (Long), never by its display name. Names are not unique: two playlists may have the same name. Create trims the name and substitutes `New playlist` when blank; rename trims a nonblank replacement or keeps the existing name when blank. Rename preserves ID, creation timestamp, membership, positions and entry-added timestamps. Delete targets the exact playlist ID; its foreign-key cascade removes only that playlist's membership, never Songs or source media.
+
+### Membership, duplicates, ordering and mutations
+
+Room v1 intentionally permits each Song ID at most once per playlist: `playlist_songs` has the composite primary key `(playlistId, songId)`. The pre-Q3.6 repository and its `addSongs appends songs without duplicates` test explicitly enforce that rule. Q3.6 retains it as a product limitation, not an accidental M3U parser deduplication. Different Q3.1 source occurrences with identical metadata remain different Song IDs and can coexist. Supporting repeated references to the same Song within one internal playlist would require a separately reviewed, playlist-preserving schema migration; none is performed here.
+
+The persisted integer `position` is order authority. Queries explicitly order by position, then Song ID as a deterministic tie-break for legacy collisions. They do not use insertion order or the global Q3.3 Song sort. Add takes requested Song-ID order, ignores already-present IDs, ignores unavailable requested Songs, and appends new unique references. SQL `IN` result order is not trusted. Add/remove/reorder reindex all stored rows contiguously. Remove targets the unique `(playlistId, songId)` relation. Reorder moves the displayed available subsequence and preserves hidden references in their existing slots. Existing entry-added timestamps survive all these operations.
+
+Multi-row mutation reads, replacement and playlist timestamp updates run in one Room transaction. Import creates a new playlist and its resolved references atomically, rechecking that every selected Song ID still exists before insertion. Failure rolls back instead of modifying an existing playlist or leaving a partial newly created one. Playlist summaries use a single observed aggregate join; Song disappearance/return updates the available count without a query per playlist row.
+
+### Missing Songs, refresh, row keys and playback
+
+There is a playlist foreign key but deliberately no Song foreign key on `playlist_songs`. Source removal leaves its raw Song-ID reference stored; the existing inner join hides it from displayed/playable rows. Q3.6 corrects mutations that previously rebuilt membership from only the visible join and could silently erase these hidden references. The same exact Song ID reappearing reconnects through the join. A new ID, moved source or metadata match does not reconnect it. There is no persisted unavailable-Song snapshot or new placeholder row.
+
+Playlist rows use `Playlist.id`; detail Song rows use Song ID, which is unique within the retained v1 playlist contract and remains stable across reorder. Selecting a detail row passes the displayed, persisted-order Song list and selected index unchanged to Q2 playback. Like existing Album detail, there is no separate Play All action: selecting the first row starts the full playlist at position zero. Queue order is never globally sorted or deduplicated by the playlist handoff. Q2's general duplicate-queue occurrence semantics remain unchanged; internal playlist duplicates are independently prohibited as described above.
+
+Favorites remain separate Song user data and a separate smart collection. Playlist and M3U operations do not toggle, convert, reorder or reset Favorites, and do not rewrite playback identity, library metadata or media bytes.
+
+### M3U/M3U8 text contract
+
+Import accepts `.m3u` and `.m3u8` case-insensitively. Both use strict UTF-8, with an optional leading UTF-8 BOM. Legacy locale encodings are not guessed. Malformed UTF-8 rejects the document before playlist creation. Limits are 1 MiB encoded input/output, 10,000 media-reference lines/entries and 8,192 characters per line; these are safety bounds, not huge-playlist performance authority.
+
+LF, CRLF, mixed line endings and a final line without newline are accepted. Blank lines and lines beginning `#` are ignored as entries. `#EXTM3U` is optional. `#EXTINF` is advisory and never becomes Song title, artist, duration or identity; malformed/orphan EXTINF is counted for diagnostics, not executed. Path text is not trimmed: spaces, Unicode, parentheses, brackets and literal percent/plus characters remain data. A leading-`#` filename must be qualified (for example `./#song.mp3`) to distinguish it from a comment; an interior `#` is literal path text. Parser output preserves media-line order and duplicates.
+
+### Conservative reference resolution
+
+Import resolves against a current-library index and never creates or scans a Song from a playlist entry. Exact existing content URIs resolve only when they identify one Song; zero matches are missing and multiple Song IDs are ambiguous. HTTP/HTTPS and protocol-relative remote references are explicitly unsupported and are never opened or fetched. Unknown schemes, including drive-letter/streaming/intent schemes, are unsupported. File URIs require an empty authority and no query/fragment, with strict percent-encoded UTF-8 path decoding. Invalid controls, encoding or syntax are malformed rather than guessed.
+
+Absolute paths need evidence from a current source. MediaStore path evidence is read in bounded ID batches using its read-only DATA column; those paths are never opened, executed or written. Provider refusal or absent path evidence falls back only to exact existing URI support, not an invented primary-storage path. Known platform external-storage document IDs can provide primary/volume-qualified paths. Generic SAF providers do not get fabricated filesystem paths.
+
+Local paths are normalized lexically for `.`/`..`, retaining volume distinctions and the accepted Q3.1 case-insensitive shared-storage comparison. Q3.1 canonical path authority is reused with an additional lossless discriminator so percent/plus/query-like filename text cannot accidentally match a different path through lossy URI decoding. An exact canonical local path mapping to zero/one/multiple Song IDs produces missing/resolved/ambiguous respectively. No title/artist matching or fuzzy basename fallback exists.
+
+Relative references use the selected playlist document's containing directory only when its provider exposes a supported real path context (the platform external-storage document provider). Sibling and parent paths may match only already-indexed, previously accessible library Songs; lexical traversal never grants additional filesystem access. An opaque/generic SAF document reports `relative context unavailable`. A basename with multiple exact current-library names may be reported ambiguous, but even a globally unique basename is not guessed without a directory context. Arbitrary provider hierarchy, removable-volume spelling/OEM matrices and universal path portability are not claimed.
+
+### Import reporting, naming and SAF lifetime
+
+The preview reports total reference lines, resolved references, unique Songs to import, repeated references omitted under the internal v1 rule, missing, ambiguous, unsupported remote/scheme, unavailable relative context, malformed references and malformed/orphan EXTINF. The user confirms this preview before creating a new playlist. Resolved duplicate lines remain in the report in input order; persistence uses first-occurrence order of unique Song IDs and explicitly reports every omission. Unresolved lines never create fake Song rows. Empty/comment-only input may explicitly create an empty playlist after confirmation.
+
+The default name is the selected filename stem, trimmed with the normal blank-name fallback; identical existing names do not trigger aggressive renaming or replace an existing playlist. User-facing diagnostics show counts rather than enumerating sensitive full source paths.
+
+The UI uses ACTION_OPEN_DOCUMENT and ACTION_CREATE_DOCUMENT with local-only picker intent and no new broad-storage permission or web intent filter. It takes no persistable grant for these one-time operations. Streams/cursors use `use`, byte limits are checked while reading, and coroutine cancellation is propagated with checks between reads/provider batches. A synchronous provider call already in progress is platform-controlled. Cancellation before confirmed import leaves playlists unchanged; interrupted export can leave an incomplete newly selected output document, reported as such. Provider availability/readability beyond the one-time grant is not assumed.
+
+### Export and round trip
+
+Export is explicit from the existing Playlists surface. It writes deterministic UTF-8 `.m3u8`, LF line endings, a leading `#EXTM3U`, one local reference per available entry in persisted order, and a final newline. No EXTINF metadata rewrite or source mutation occurs. Proven absolute local paths are preferred; otherwise an existing supported content URI is emitted, with a warning that provider/library-local URIs are not portable filesystem paths. No fabricated SAF path or relative export rewriting is introduced. Invalid/unrepresentable local references reject export before the destination stream opens; current-library Song destinations are refused.
+
+The writer itself preserves repeated input entries, while internal v1 playlists supply only unique Song IDs. Reimport against the same unchanged library preserves supported Song identities and order. Raw unavailable references cannot be exported as truthful playable locators because v1 has no source snapshot; export reports their omission without deleting those stored references. A partial/failed import or export never corrupts an existing playlist.
+
+### Cost and verification scope
+
+For n indexed Songs and p bounded references, import builds URI/path/name indexes once, then resolves in O(n + p + c) expected hash/index work (plus total text/path length), where c is the total candidate-bucket entries visited by per-reference Song-ID deduplication. Ordinary singleton buckets give approximately O(n + p); repeated lookups into a pathological n-sized ambiguous bucket can still cost O(n * p). The resolver does not scan the full library for every line. Memory is O(n + p + bounded document bytes); there is no per-line Room query, scanner ingestion, coroutine or remote fetch. Playlist mutations are O(p) row rewrites within the existing representation, in addition to database query/ordering costs; summaries use one aggregate query. IO is demand-driven by user actions, not playback ticks. Baseline Profile sources are retained without regeneration; repository constructor/summary flow, generated playlist DAO, transaction, parser/resolver/writer and file-action paths belong in normal release-cycle reassessment.
+
+Q3.6 authority combines pure parser/repository tests, actual Room transaction/rollback and hidden-reference reconnection checks, synthetic API-36 import/export IO and semantic round trip, restart/order preservation, actual playlist UI reorder/remove and picker cancellation, and queue position/identity assertions. Local-file relative semantics and platform document-path mapping are distinguished from opaque-provider IO; this is not a universal third-party SAF-provider or OEM matrix. Final run results and release audit are recorded in the Q3.6 closeout report.
+
+Q3.6 closeout accepts the corrected API-36 authority: `emulator-5554`, qemu `1`, AVD `LibrePlayer_Benchmark_API_36`, `OK (1 test)`, 26.750 seconds; the earlier 27.194-second pass is superseded for relative-directory evidence. Preserved final XML and HTML unit reports agree on **179 tests in 31 suites, zero failures/errors/skips**, correcting the handoff's 178-test tally. Final assemblies and standalone lint passed on the unchanged source; the preserved lint file predates the corrected Android run. Resume inspection changed documentation only and reran no unit, build, lint or Android gate. Cleanup left zero fixture MediaStore rows and no temporary Q3.6 documents/media; the emulator is stopped. Room v1, version 1.0.4/code 5, local-only release permissions and accepted packaged Baseline Profile remain unchanged. Q3.6 is accepted for handoff to Q3.7, which is not implemented here. Detailed limits, hashes and evidence remain in the local ignored `performance-results/q3.6-playlist/closeout-final.md` report.
 
 ## Q3.3 coverage matrix
 

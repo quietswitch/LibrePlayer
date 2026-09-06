@@ -5,16 +5,16 @@ import com.libreplayer.data.database.dao.PlaylistSongWithSong
 import com.libreplayer.data.database.dao.SongLookupQueries
 import com.libreplayer.data.database.entity.PlaylistEntity
 import com.libreplayer.data.database.entity.PlaylistSongEntity
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapLatest
 
 interface PlaylistRepository {
     fun observePlaylists(): Flow<List<UserPlaylist>>
     fun observePlaylistSongs(playlistId: Long): Flow<List<PlaylistSong>>
     suspend fun getPlaylistSongs(playlistId: Long): List<Song>
+    suspend fun getPlaylistSongIds(playlistId: Long): List<String>
     suspend fun createPlaylist(name: String): Long
+    suspend fun importPlaylist(name: String, songIds: List<String>): Long
     suspend fun renamePlaylist(playlistId: Long, name: String)
     suspend fun deletePlaylist(playlistId: Long)
     suspend fun addSongs(playlistId: Long, songIds: List<String>)
@@ -25,16 +25,16 @@ interface PlaylistRepository {
 class DefaultPlaylistRepository(
     private val playlistQueries: PlaylistQueries,
     private val songLookupQueries: SongLookupQueries,
+    private val transaction: suspend (suspend () -> Unit) -> Unit,
 ) : PlaylistRepository {
-    @OptIn(ExperimentalCoroutinesApi::class)
     override fun observePlaylists(): Flow<List<UserPlaylist>> =
-        playlistQueries.observePlaylists().mapLatest { playlists ->
-            playlists.map { playlist ->
+        playlistQueries.observePlaylists().map { playlists ->
+            playlists.map { row ->
                 UserPlaylist(
-                    id = playlist.id,
-                    name = playlist.name,
-                    songCount = playlistQueries.getPlaylistSongsNow(playlist.id).size,
-                    updatedAtEpochMillis = playlist.updatedAtEpochMillis,
+                    id = row.playlist.id,
+                    name = row.playlist.name,
+                    songCount = row.songCount,
+                    updatedAtEpochMillis = row.playlist.updatedAtEpochMillis,
                 )
             }
         }
@@ -47,6 +47,24 @@ class DefaultPlaylistRepository(
     override suspend fun getPlaylistSongs(playlistId: Long): List<Song> =
         playlistQueries.getPlaylistSongsNow(playlistId).map { it.song.asModel() }
 
+    override suspend fun getPlaylistSongIds(playlistId: Long): List<String> =
+        playlistQueries.getPlaylistEntriesNow(playlistId).map { it.songId }
+
+    override suspend fun importPlaylist(name: String, songIds: List<String>): Long {
+        var playlistId = 0L
+        transaction {
+            val ids = songIds.distinct()
+            val available = ids.chunked(900).flatMap { songLookupQueries.getSongsByIds(it) }.map { it.id }.toSet()
+            check(ids.all { it in available }) { "Library changed; review the playlist again before importing." }
+            playlistId = createPlaylist(name)
+            val now = System.currentTimeMillis()
+            playlistQueries.replaceSongs(playlistId, ids.mapIndexed { position, id ->
+                PlaylistSongEntity(playlistId, id, position, now)
+            })
+        }
+        return playlistId
+    }
+
     override suspend fun createPlaylist(name: String): Long {
         val now = System.currentTimeMillis()
         return playlistQueries.insertPlaylist(
@@ -58,8 +76,8 @@ class DefaultPlaylistRepository(
         )
     }
 
-    override suspend fun renamePlaylist(playlistId: Long, name: String) {
-        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return
+    override suspend fun renamePlaylist(playlistId: Long, name: String) = transaction {
+        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return@transaction
         playlistQueries.updatePlaylist(
             playlist.copy(
                 name = name.trim().ifBlank { playlist.name },
@@ -72,20 +90,21 @@ class DefaultPlaylistRepository(
         playlistQueries.deletePlaylistById(playlistId)
     }
 
-    override suspend fun addSongs(playlistId: Long, songIds: List<String>) {
-        if (songIds.isEmpty()) return
-        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return
-        val existing = playlistQueries.getPlaylistSongsNow(playlistId).toMutableList()
-        val existingIds = existing.map { it.song.id }.toMutableSet()
-        val songsToAdd = songLookupQueries.getSongsByIds(songIds)
-            .filter { song -> existingIds.add(song.id) }
+    override suspend fun addSongs(playlistId: Long, songIds: List<String>) = transaction {
+        if (songIds.isEmpty()) return@transaction
+        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return@transaction
+        val existing = playlistQueries.getPlaylistEntriesNow(playlistId)
+        val existingIds = existing.map { it.songId }.toMutableSet()
+        val available = songIds.distinct().chunked(900)
+            .flatMap { songLookupQueries.getSongsByIds(it) }.map { it.id }.toSet()
+        val songsToAdd = songIds.filter { it in available && existingIds.add(it) }
         val now = System.currentTimeMillis()
-        val updated = existing.map { it.crossRef }.toMutableList()
+        val updated = existing.reindex().toMutableList()
         var nextPosition = updated.size
-        songsToAdd.forEach { song ->
+        songsToAdd.forEach { songId ->
             updated += PlaylistSongEntity(
                 playlistId = playlistId,
-                songId = song.id,
+                songId = songId,
                 position = nextPosition++,
                 addedAtEpochMillis = now,
             )
@@ -94,23 +113,26 @@ class DefaultPlaylistRepository(
         playlistQueries.updatePlaylist(playlist.copy(updatedAtEpochMillis = now))
     }
 
-    override suspend fun removeSong(playlistId: Long, songId: String) {
-        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return
-        val updated = playlistQueries.getPlaylistSongsNow(playlistId)
-            .map { it.crossRef }
+    override suspend fun removeSong(playlistId: Long, songId: String) = transaction {
+        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return@transaction
+        val updated = playlistQueries.getPlaylistEntriesNow(playlistId)
             .filterNot { it.songId == songId }
             .reindex()
         playlistQueries.replaceSongs(playlistId, updated)
         playlistQueries.updatePlaylist(playlist.copy(updatedAtEpochMillis = System.currentTimeMillis()))
     }
 
-    override suspend fun moveSong(playlistId: Long, fromIndex: Int, toIndex: Int) {
-        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return
-        val items = playlistQueries.getPlaylistSongsNow(playlistId).map { it.crossRef }.toMutableList()
-        if (fromIndex !in items.indices || toIndex !in items.indices) return
-        val moved = items.removeAt(fromIndex)
-        items.add(toIndex, moved)
-        playlistQueries.replaceSongs(playlistId, items.reindex())
+    override suspend fun moveSong(playlistId: Long, fromIndex: Int, toIndex: Int) = transaction {
+        val playlist = playlistQueries.getPlaylistById(playlistId) ?: return@transaction
+        val stored = playlistQueries.getPlaylistEntriesNow(playlistId)
+        val visibleIds = playlistQueries.getPlaylistSongsNow(playlistId).map { it.crossRef.songId }.toSet()
+        val visible = stored.filter { it.songId in visibleIds }.toMutableList()
+        if (fromIndex !in visible.indices || toIndex !in visible.indices) return@transaction
+        visible.add(toIndex, visible.removeAt(fromIndex))
+        // Hidden references retain their slots; only the displayed subsequence moves.
+        val reordered = visible.iterator()
+        val updated = stored.map { if (it.songId in visibleIds) reordered.next() else it }
+        playlistQueries.replaceSongs(playlistId, updated.reindex())
         playlistQueries.updatePlaylist(playlist.copy(updatedAtEpochMillis = System.currentTimeMillis()))
     }
 }

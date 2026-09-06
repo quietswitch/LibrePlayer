@@ -13,7 +13,7 @@ import com.libreplayer.data.database.entity.SongEntity
 import kotlinx.coroutines.flow.Flow
 
 interface PlaylistQueries {
-    fun observePlaylists(): Flow<List<PlaylistEntity>>
+    fun observePlaylists(): Flow<List<PlaylistWithCount>>
     fun observePlaylistSongs(playlistId: Long): Flow<List<PlaylistSongWithSong>>
     suspend fun getPlaylistById(playlistId: Long): PlaylistEntity?
     suspend fun insertPlaylist(playlist: PlaylistEntity): Long
@@ -21,7 +21,13 @@ interface PlaylistQueries {
     suspend fun deletePlaylistById(playlistId: Long)
     suspend fun replaceSongs(playlistId: Long, songs: List<PlaylistSongEntity>)
     suspend fun getPlaylistSongsNow(playlistId: Long): List<PlaylistSongWithSong>
+    suspend fun getPlaylistEntriesNow(playlistId: Long): List<PlaylistSongEntity>
 }
+
+data class PlaylistWithCount(
+    @Embedded val playlist: PlaylistEntity,
+    val songCount: Int,
+)
 
 interface SongLookupQueries {
     suspend fun getSongsByIds(ids: List<String>): List<SongEntity>
@@ -34,8 +40,19 @@ data class PlaylistSongWithSong(
 
 @Dao
 interface PlaylistDao : PlaylistQueries {
-    @Query("SELECT * FROM playlists ORDER BY updatedAtEpochMillis DESC, name ASC")
-    override fun observePlaylists(): Flow<List<PlaylistEntity>>
+    @Query(
+        """
+        SELECT playlists.*, COUNT(songs.id) AS songCount FROM playlists
+        LEFT JOIN playlist_songs ON playlist_songs.playlistId = playlists.id
+        LEFT JOIN songs ON songs.id = playlist_songs.songId
+        GROUP BY playlists.id
+        ORDER BY playlists.updatedAtEpochMillis DESC, playlists.name ASC, playlists.id ASC
+        """,
+    )
+    override fun observePlaylists(): Flow<List<PlaylistWithCount>>
+
+    @Query("SELECT * FROM playlist_songs WHERE playlistId = :playlistId ORDER BY position ASC, songId ASC")
+    override suspend fun getPlaylistEntriesNow(playlistId: Long): List<PlaylistSongEntity>
 
     @Transaction
     @Query(
@@ -67,7 +84,7 @@ interface PlaylistDao : PlaylistQueries {
         FROM playlist_songs
         INNER JOIN songs ON songs.id = playlist_songs.songId
         WHERE playlist_songs.playlistId = :playlistId
-        ORDER BY playlist_songs.position ASC
+        ORDER BY playlist_songs.position ASC, playlist_songs.songId ASC
         """,
     )
     override fun observePlaylistSongs(playlistId: Long): Flow<List<PlaylistSongWithSong>>
@@ -128,9 +145,8 @@ interface PlaylistDao : PlaylistQueries {
         FROM playlist_songs
         INNER JOIN songs ON songs.id = playlist_songs.songId
         WHERE playlist_songs.playlistId = :playlistId
-        ORDER BY playlist_songs.position ASC
+        ORDER BY playlist_songs.position ASC, playlist_songs.songId ASC
         """,
     )
     override suspend fun getPlaylistSongsNow(playlistId: Long): List<PlaylistSongWithSong>
 }
-
