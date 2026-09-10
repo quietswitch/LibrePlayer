@@ -22,7 +22,7 @@ android {
         versionCode = 5
         versionName = "1.0.4"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.libreplayer.migration.SourceMigrationTestRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -71,10 +71,18 @@ android {
             isIncludeAndroidResources = true
         }
     }
+    sourceSets {
+        getByName("test").kotlin.srcDir("src/sharedTest/java")
+        getByName("androidTest").kotlin.srcDir("src/sharedTest/java")
+        getByName("androidTest").assets.srcDir("schemas")
+    }
 }
 
 kapt {
     correctErrorTypes = true
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
 }
 
 dependencies {

@@ -69,7 +69,8 @@ class LibraryViewModelSortSearchTest {
 
             songsFlow.value = listOf(fast, slow, twinA)
             val refreshed = viewModel.state.first {
-                it.searchQuery == "twin" && it.searchResult.songs.map(Song::id) == listOf("media:twin-a")
+                it.songs.size == 3 && it.searchQuery == "twin" &&
+                    it.searchResult.songs.map(Song::id) == listOf("media:twin-a")
             }
             assertThat(refreshed.songs).hasSize(3)
 

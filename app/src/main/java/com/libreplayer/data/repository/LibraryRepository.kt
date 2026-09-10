@@ -10,8 +10,9 @@ import com.libreplayer.data.database.entity.RecentlyPlayedEntity
 import com.libreplayer.data.database.entity.SongEntity
 import com.libreplayer.library.scanner.DeviceLibraryScanner
 import com.libreplayer.library.scanner.LibraryScanMode
-import com.libreplayer.library.scanner.LibraryScanResult
-import kotlinx.coroutines.Dispatchers
+import com.libreplayer.library.scanner.SourceScan
+import com.libreplayer.library.scanner.SourceIdentity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +21,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
 data class LibrarySyncState(
     val isLoading: Boolean = false,
@@ -108,7 +108,7 @@ class DefaultLibraryRepository(
     override suspend fun getSongById(id: String): Song? = songDao.getSongById(id)?.asModel()
 
     override suspend fun getAllSongs(): List<Song> =
-        songDao.getAllSongs().map(SongEntity::asModel)
+        songDao.getAvailableSongs().map(SongEntity::asModel)
 
     override suspend fun toggleFavorite(songId: String) {
         val song = songDao.getSongById(songId) ?: return
@@ -136,7 +136,12 @@ class DefaultLibraryRepository(
     }
 
     override suspend fun removeImportedRoot(uri: String) {
-        importedRootDao.deleteRoot(uri)
+        refreshMutex.withLock {
+            database.withTransaction {
+                database.reconcileSources(listOf(SourceScan.Detached(SourceIdentity.root(uri))))
+                importedRootDao.deleteRoot(uri)
+            }
+        }
         rescanLibrary()
     }
 
@@ -148,9 +153,10 @@ class DefaultLibraryRepository(
             val cachedSongs = songDao.getAllSongs()
             val importedRoots = importedRootDao.getRoots().map { it.uri }
             val lastSuccessfulRefreshAt = refreshStore.lastSuccessfulRefreshAtMillis()
+            val needsSourceInitialization = database.sourceDao().getSources().none { it.reconciledAtEpochMillis > 0 }
             if (
                 !shouldRefreshLibrary(
-                    forceRefresh = forceRefresh,
+                    forceRefresh = forceRefresh || needsSourceInitialization,
                     cachedSongCount = cachedSongs.size,
                     lastSuccessfulRefreshAtMillis = lastSuccessfulRefreshAt,
                     nowMillis = System.currentTimeMillis(),
@@ -174,111 +180,45 @@ class DefaultLibraryRepository(
                 LibraryScanMode.INCREMENTAL
             }
             _syncState.value = LibrarySyncState(isLoading = true)
-            when (
+            try {
                 val result = scanner.scan(
                     importedRoots = importedRoots,
                     cachedSongs = cachedSongs.map(SongEntity::asScannedSong),
-                    checkpoint = refreshStore.mediaStoreCheckpoint(),
+                    sources = database.sourceDao().getSources(),
+                    memberships = database.sourceDao().getMemberships(),
                     mode = scanMode,
                 )
-            ) {
-                is LibraryScanResult.PermissionRequired -> {
-                    _syncState.value = LibrarySyncState(permissionRequired = true)
-                }
-
-                is LibraryScanResult.Error -> {
-                    _syncState.value = LibrarySyncState(errorMessage = result.message)
-                }
-
-                is LibraryScanResult.Success -> {
-                    val writeStatistics = applyScanResult(result)
-                    if (result.isMediaStoreComplete) {
-                        refreshStore.markSuccessfulSync(
-                            checkpoint = result.mediaStoreCheckpoint,
-                            fullReconciliation = result.performedFullReconciliation,
-                        )
+                val failures = result.sources.filterIsInstance<SourceScan.Unavailable>().map { it.reason }.toMutableList()
+                for (source in result.sources) {
+                    try {
+                        database.reconcileSources(listOf(source))
+                    } catch (failure: Exception) {
+                        if (failure is CancellationException) throw failure
+                        failures += failure.message ?: "Source reconciliation failed."
                     }
-                    logSyncStatistics(result, writeStatistics)
-                    _syncState.value = LibrarySyncState(
-                        permissionRequired = !result.isMediaStoreComplete,
-                    )
                 }
+                if (failures.isEmpty()) {
+                    refreshStore.markSuccessfulSync(fullReconciliation = result.full)
+                }
+                val stats = result.statistics
+                Log.i(LIBRARY_SYNC_LOG_TAG,
+                    "full=${result.full} elapsedMs=${stats.elapsedMillis} mediaRows=${stats.mediaStoreRowsRead} " +
+                        "mediaIdRows=${stats.mediaStoreIdRowsRead} documents=${stats.documentFilesVisited} " +
+                        "metadataReads=${stats.documentMetadataReads} metadataFailures=${stats.documentMetadataFailures} " +
+                        "reused=${stats.cachedSongsReused} sourceFailures=${failures.size}")
+                _syncState.value = LibrarySyncState(
+                    errorMessage = failures.firstOrNull(),
+                    permissionRequired = result.sources.filterIsInstance<SourceScan.Unavailable>().any { it.permissionRequired },
+                )
+            } catch (failure: Exception) {
+                if (failure is CancellationException) throw failure
+                _syncState.value = LibrarySyncState(errorMessage = failure.message ?: "Unable to refresh library.")
+            } finally {
+                _syncState.value = _syncState.value.copy(isLoading = false)
             }
         }
-    }
-
-    private suspend fun applyScanResult(result: LibraryScanResult.Success): LibraryWriteStatistics {
-        val currentSongs = songDao.getAllSongs()
-        val currentAlbums = albumDao.getAllAlbums()
-        val currentArtists = artistDao.getAllArtists()
-        val changes = withContext(Dispatchers.Default) {
-            prepareLibraryChanges(
-                scannedSongs = result.songs,
-                currentSongs = currentSongs,
-                currentAlbums = currentAlbums,
-                currentArtists = currentArtists,
-            )
-        }
-        if (!result.performedFullReconciliation && !changes.hasChanges) {
-            return LibraryWriteStatistics()
-        }
-
-        database.withTransaction {
-            if (result.performedFullReconciliation) {
-                songDao.clearSongs()
-                albumDao.clearAlbums()
-                artistDao.clearArtists()
-                if (changes.songs.isNotEmpty()) songDao.upsertSongs(changes.songs)
-                if (changes.albums.isNotEmpty()) albumDao.upsertAlbums(changes.albums)
-                if (changes.artists.isNotEmpty()) artistDao.upsertArtists(changes.artists)
-            } else {
-                if (changes.deletedSongIds.isNotEmpty()) songDao.deleteSongsByIds(changes.deletedSongIds)
-                if (changes.songUpserts.isNotEmpty()) songDao.upsertSongs(changes.songUpserts)
-                if (changes.deletedAlbumIds.isNotEmpty()) albumDao.deleteAlbumsByIds(changes.deletedAlbumIds)
-                if (changes.albumUpserts.isNotEmpty()) albumDao.upsertAlbums(changes.albumUpserts)
-                if (changes.deletedArtistIds.isNotEmpty()) artistDao.deleteArtistsByIds(changes.deletedArtistIds)
-                if (changes.artistUpserts.isNotEmpty()) artistDao.upsertArtists(changes.artistUpserts)
-            }
-        }
-        return if (result.performedFullReconciliation) {
-            LibraryWriteStatistics(
-                songUpserts = changes.songs.size,
-                songDeletes = currentSongs.size,
-                albumUpserts = changes.albums.size,
-                albumDeletes = currentAlbums.size,
-                artistUpserts = changes.artists.size,
-                artistDeletes = currentArtists.size,
-            )
-        } else {
-            LibraryWriteStatistics(
-                songUpserts = changes.songUpserts.size,
-                songDeletes = changes.deletedSongIds.size,
-                albumUpserts = changes.albumUpserts.size,
-                albumDeletes = changes.deletedAlbumIds.size,
-                artistUpserts = changes.artistUpserts.size,
-                artistDeletes = changes.deletedArtistIds.size,
-            )
-        }
-    }
-
-    private fun logSyncStatistics(
-        result: LibraryScanResult.Success,
-        writes: LibraryWriteStatistics,
-    ) {
-        val scan = result.statistics
-        Log.i(
-            LIBRARY_SYNC_LOG_TAG,
-            "full=${result.performedFullReconciliation} elapsedMs=${scan.elapsedMillis} " +
-                "mediaRows=${scan.mediaStoreRowsRead} mediaIdRows=${scan.mediaStoreIdRowsRead} " +
-                "documents=${scan.documentFilesVisited} metadataReads=${scan.documentMetadataReads} " +
-                "metadataFailures=${scan.documentMetadataFailures} " +
-                "reused=${scan.cachedSongsReused} songUpserts=${writes.songUpserts} " +
-                "songDeletes=${writes.songDeletes} albumWrites=${writes.albumUpserts + writes.albumDeletes} " +
-                "artistWrites=${writes.artistUpserts + writes.artistDeletes}",
-        )
     }
 }
-
 internal fun shouldRefreshLibrary(
     forceRefresh: Boolean,
     cachedSongCount: Int,
@@ -307,12 +247,3 @@ internal fun shouldPerformFullReconciliation(
 ): Boolean =
     forceRebuild || cachedSongCount <= 0 || lastFullReconciliationAtMillis <= 0L ||
         nowMillis - lastFullReconciliationAtMillis >= intervalMillis
-
-private data class LibraryWriteStatistics(
-    val songUpserts: Int = 0,
-    val songDeletes: Int = 0,
-    val albumUpserts: Int = 0,
-    val albumDeletes: Int = 0,
-    val artistUpserts: Int = 0,
-    val artistDeletes: Int = 0,
-)

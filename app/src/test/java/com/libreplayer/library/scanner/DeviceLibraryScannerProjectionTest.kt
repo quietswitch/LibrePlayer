@@ -13,6 +13,7 @@ class DeviceLibraryScannerProjectionTest {
         assertThat(projection.toList()).doesNotContain(MediaStore.Audio.Media.RELATIVE_PATH)
         assertThat(projection.toList()).doesNotContain(MediaStore.MediaColumns.GENERATION_MODIFIED)
         assertThat(projection.toList()).contains(MediaStore.Audio.Media._ID)
+        assertThat(projection.toList()).contains(MediaStore.Audio.Media.DATA)
     }
 
     @Test

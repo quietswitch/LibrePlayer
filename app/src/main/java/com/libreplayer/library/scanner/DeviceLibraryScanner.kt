@@ -10,7 +10,6 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import com.libreplayer.library.semantics.decodeMediaStoreTrackNumber
 import com.libreplayer.library.semantics.normalizeMetadataYear
-import androidx.annotation.RequiresApi
 import androidx.documentfile.provider.DocumentFile
 import com.libreplayer.data.repository.SongSourceType
 import com.libreplayer.library.metadata.AudioMetadataReader
@@ -57,192 +56,117 @@ data class LibraryScanStatistics(
     val cachedSongsReused: Int,
 )
 
-sealed interface LibraryScanResult {
-    data class Success(
-        val songs: List<ScannedSong>,
-        val isMediaStoreComplete: Boolean,
-        val mediaStoreCheckpoint: MediaStoreCheckpoint?,
-        val performedFullReconciliation: Boolean,
-        val statistics: LibraryScanStatistics,
-    ) : LibraryScanResult
-
-    data object PermissionRequired : LibraryScanResult
-    data class Error(val message: String) : LibraryScanResult
-}
+internal data class ScopedLibraryScan(
+    val sources: List<SourceScan>,
+    val statistics: LibraryScanStatistics,
+    val full: Boolean,
+)
 
 class DeviceLibraryScanner(
     private val context: Context,
     private val metadataReader: AudioMetadataReader,
 ) {
-    suspend fun scan(
+    internal suspend fun scan(
         importedRoots: List<String>,
         cachedSongs: List<ScannedSong>,
-        checkpoint: MediaStoreCheckpoint?,
+        sources: List<com.libreplayer.data.database.entity.LibrarySourceEntity>,
+        memberships: List<com.libreplayer.data.database.entity.SongSourceEntity>,
         mode: LibraryScanMode,
-    ): LibraryScanResult = withContext(Dispatchers.IO) {
+    ): ScopedLibraryScan = withContext(Dispatchers.IO) {
         val startedAt = SystemClock.elapsedRealtime()
-        runCatching {
-            val cachedMediaStoreSongs = cachedSongs.filterSource(SongSourceType.MEDIA_STORE)
-            val cachedDocumentSongs = cachedSongs.filterSource(SongSourceType.DOCUMENT)
-            val mediaStoreScan = queryMediaStoreSafely(
-                cachedSongs = cachedMediaStoreSongs,
-                checkpoint = checkpoint,
-                forceFull = mode == LibraryScanMode.FULL_REBUILD,
-            )
-            val forceFullDocuments = mode == LibraryScanMode.FULL_REBUILD ||
-                mediaStoreScan.checkpointInvalidated
-            val documentScan = scanImportedRoots(
-                importedRoots = importedRoots,
-                cachedDocumentSongs = cachedDocumentSongs,
-                reusableCachedSongs = cachedSongs,
-                forceFull = forceFullDocuments,
-            )
-            val mediaStoreSongs = if (mediaStoreScan.permissionRequired) {
-                cachedMediaStoreSongs
+        val results = mutableListOf<SourceScan>()
+        var mediaRows = 0
+        var idRows = 0
+        var reused = 0
+        val counters = DocumentScanCounters()
+        val forceFull = mode == LibraryScanMode.FULL_REBUILD
+        val songsById = cachedSongs.associateBy { it.id }
+        val previousSources = sources.associateBy { it.id }
+        val mediaSources = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.getExternalVolumeNames(context).sorted().map(SourceIdentity::media)
             } else {
-                mediaStoreScan.songs
+                // A physical primary card on old APIs has no durable volume identity here.
+                // Only a platform-proven emulated primary storage scope is authoritative.
+                if (!android.os.Environment.isExternalStorageEmulated() ||
+                    android.os.Environment.getExternalStorageState() != android.os.Environment.MEDIA_MOUNTED
+                ) throw IOException("MediaStore storage identity is unavailable; import an exact SAF root.")
+                listOf(SourceIdentity.media("emulated_primary"))
             }
-            val songs = ScannedSongDeduper.dedupe(mediaStoreSongs + documentScan.songs)
-            LibraryScanResult.Success(
-                songs = songs,
-                isMediaStoreComplete = !mediaStoreScan.permissionRequired,
-                mediaStoreCheckpoint = mediaStoreScan.checkpoint,
-                performedFullReconciliation = !mediaStoreScan.permissionRequired &&
-                    forceFullDocuments && documentScan.isComplete,
-                statistics = LibraryScanStatistics(
-                    elapsedMillis = SystemClock.elapsedRealtime() - startedAt,
-                    mediaStoreRowsRead = mediaStoreScan.rowsRead,
-                    mediaStoreIdRowsRead = mediaStoreScan.idRowsRead,
-                    documentFilesVisited = documentScan.filesVisited,
-                    documentMetadataReads = documentScan.metadataReads,
-                    documentMetadataFailures = documentScan.metadataFailures,
-                    cachedSongsReused = mediaStoreScan.cachedSongsReused + documentScan.cachedSongsReused,
-                ),
-            )
-        }.getOrElse { throwable ->
-            when (throwable) {
-                is SecurityException -> LibraryScanResult.PermissionRequired
-                else -> LibraryScanResult.Error(throwable.message ?: "Unable to scan local library.")
+        } catch (failure: Exception) {
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            results += SourceScan.Unavailable(SourceIdentity.media("emulated_primary"), failure.message.orEmpty(), failure is SecurityException)
+            emptyList()
+        }
+        val requested = mediaSources + importedRoots.map(SourceIdentity::root)
+        sources.filter { old -> old.kind == SourceIdentity.MEDIA && requested.none { it.id == old.id } }.forEach { old ->
+            // Missing volumes never constitute empty enumeration. Explicitly detached roots
+            // retain aliases but are no longer requested; revoked registered roots fail below.
+            results += SourceScan.Unavailable(old, "Source is not available.")
+        }
+        for (descriptor in requested) {
+            val source = previousSources[descriptor.id] ?: descriptor
+            val cached = memberships.filter { it.sourceId == source.id && it.incarnation == source.incarnation && it.present }
+                .mapNotNull { member -> songsById[member.songId]?.copy(id = member.itemKey, contentUri = member.contentUri) }
+            try {
+                if (source.kind == SourceIdentity.MEDIA) {
+                    val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        MediaStore.Audio.Media.getContentUri(source.locator)
+                    } else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    val before = currentCheckpoint(source.locator)
+                    val previous = source.version?.let { version -> source.generation?.let { MediaStoreCheckpoint(version, it) } }
+                    val decision = decideGenerationSync(previous, before, forceFull || Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+                    val scanned = if (decision == GenerationSyncDecision.FULL) {
+                        queryMediaStoreSongs(collection, null).also { mediaRows += it.size }
+                    } else {
+                        val changed = if (decision == GenerationSyncDecision.INCREMENTAL) {
+                            queryMediaStoreSongs(collection, checkNotNull(previous).generation).also { mediaRows += it.size }
+                        } else emptyList()
+                        val ids = queryCurrentMediaStoreIds(collection).also { idRows += it.size }
+                        mergeIncrementalMediaStoreSongs(cached, changed, ids).also { reused += it.size - changed.size }
+                    }
+                    // A provider mutation between enumeration and its ID/checkpoint queries cannot
+                    // authorize a partial deletion set. Retry on the next refresh instead.
+                    if (before != currentCheckpoint(source.locator)) throw IOException("MediaStore changed during enumeration.")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && source.locator !in MediaStore.getExternalVolumeNames(context)) {
+                        throw IOException("MediaStore volume became unavailable.")
+                    }
+                    results += SourceScan.Complete(source, scanned.map { SourceObservation(it.id, it) }, before)
+                } else {
+                    val destination = mutableListOf<ScannedSong>()
+                    val byDocument = cached.mapNotNull { song -> SourceIdentity.documentKey(song.contentUri)?.let { it to song } }.toMap()
+                    val uri = Uri.parse(source.locator)
+                    if (DocumentsContract.isTreeUri(uri)) {
+                        walkDocumentTree(uri, destination, byDocument, forceFull, counters)
+                    } else {
+                        val root = DocumentFile.fromSingleUri(context, uri) ?: throw IOException("Cannot open document root.")
+                        if (!root.exists() || !root.canRead()) throw IOException("Document root is unavailable.")
+                        walkDocument(root, destination, byDocument, forceFull, counters)
+                    }
+                    val observations = destination.map { song ->
+                        SourceObservation(checkNotNull(SourceIdentity.documentKey(song.contentUri)), song)
+                    }.distinctBy { it.itemKey }
+                    results += SourceScan.Complete(source, observations)
+                }
+            } catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                results += SourceScan.Unavailable(source, failure.message ?: "Source enumeration failed.", failure is SecurityException)
             }
         }
+        ScopedLibraryScan(results, LibraryScanStatistics(
+            SystemClock.elapsedRealtime() - startedAt, mediaRows, idRows, counters.filesVisited,
+            counters.metadataReads, counters.metadataFailures, reused + counters.cachedSongsReused,
+        ), forceFull)
     }
 
-    private fun queryMediaStoreSafely(
-        cachedSongs: List<ScannedSong>,
-        checkpoint: MediaStoreCheckpoint?,
-        forceFull: Boolean,
-    ): MediaStoreScan =
-        try {
-            queryMediaStore(cachedSongs, checkpoint, forceFull)
-        } catch (_: SecurityException) {
-            MediaStoreScan(
-                songs = cachedSongs,
-                permissionRequired = true,
-                checkpoint = checkpoint,
-                checkpointInvalidated = false,
-                rowsRead = 0,
-                idRowsRead = 0,
-                cachedSongsReused = cachedSongs.size,
-            )
-        }
-
-    private fun queryMediaStore(
-        cachedSongs: List<ScannedSong>,
-        checkpoint: MediaStoreCheckpoint?,
-        forceFull: Boolean,
-    ): MediaStoreScan {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !hasOnlyPrimaryExternalVolume()) {
-            val songs = queryMediaStoreSongs(minimumGenerationExclusive = null)
-            return MediaStoreScan(
-                songs = songs,
-                permissionRequired = false,
-                checkpoint = currentCheckpointOrNull(),
-                checkpointInvalidated = false,
-                rowsRead = songs.size,
-                idRowsRead = 0,
-                cachedSongsReused = 0,
-            )
-        }
-
-        return queryGenerationAwareMediaStore(cachedSongs, checkpoint, forceFull)
+    private fun currentCheckpoint(volume: String): MediaStoreCheckpoint? {
+        val version = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.getVersion(context, volume)
+            else MediaStore.getVersion(context)
+        if (version == null) throw IOException("MediaStore version is unavailable.")
+        val generation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) MediaStore.getGeneration(context, volume) else 0
+        return MediaStoreCheckpoint(version, generation)
     }
-
-    @RequiresApi(Build.VERSION_CODES.R)
-    private fun queryGenerationAwareMediaStore(
-        cachedSongs: List<ScannedSong>,
-        checkpoint: MediaStoreCheckpoint?,
-        forceFull: Boolean,
-    ): MediaStoreScan {
-        val currentCheckpoint = currentCheckpointOrNull()
-        val syncDecision = decideGenerationSync(checkpoint, currentCheckpoint, forceFull)
-        if (syncDecision == GenerationSyncDecision.FULL) {
-            val songs = queryMediaStoreSongs(minimumGenerationExclusive = null)
-            return MediaStoreScan(
-                songs = songs,
-                permissionRequired = false,
-                checkpoint = currentCheckpoint,
-                checkpointInvalidated = !forceFull,
-                rowsRead = songs.size,
-                idRowsRead = 0,
-                cachedSongsReused = 0,
-            )
-        }
-
-        checkNotNull(currentCheckpoint)
-        checkNotNull(checkpoint)
-        if (syncDecision == GenerationSyncDecision.UNCHANGED) {
-            // Generations identify added/modified rows, but an ID reconciliation is still needed
-            // for deletions and for rows that no longer satisfy the music/duration filters.
-            val currentIds = queryCurrentMediaStoreIds()
-            val songs = mergeIncrementalMediaStoreSongs(cachedSongs, emptyList(), currentIds)
-            return MediaStoreScan(
-                songs = songs,
-                permissionRequired = false,
-                checkpoint = currentCheckpoint,
-                checkpointInvalidated = false,
-                rowsRead = 0,
-                idRowsRead = currentIds.size,
-                cachedSongsReused = songs.size,
-            )
-        }
-
-        val changedSongs = queryMediaStoreSongs(checkpoint.generation)
-        val currentIds = queryCurrentMediaStoreIds()
-        val songs = mergeIncrementalMediaStoreSongs(
-            cachedSongs = cachedSongs,
-            changedSongs = changedSongs,
-            currentIds = currentIds,
-        )
-        return MediaStoreScan(
-            songs = songs,
-            permissionRequired = false,
-            checkpoint = currentCheckpoint,
-            checkpointInvalidated = false,
-            rowsRead = changedSongs.size,
-            idRowsRead = currentIds.size,
-            cachedSongsReused = (songs.size - changedSongs.size).coerceAtLeast(0),
-        )
-    }
-
-    private fun hasOnlyPrimaryExternalVolume(): Boolean =
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            false
-        } else {
-            MediaStore.getExternalVolumeNames(context) == setOf(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        }
-
-    private fun currentCheckpointOrNull(): MediaStoreCheckpoint? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-        return runCatching {
-            MediaStoreCheckpoint(
-                version = MediaStore.getVersion(context, MediaStore.VOLUME_EXTERNAL_PRIMARY),
-                generation = MediaStore.getGeneration(context, MediaStore.VOLUME_EXTERNAL_PRIMARY),
-            )
-        }.getOrNull()
-    }
-
-    private fun queryMediaStoreSongs(minimumGenerationExclusive: Long?): List<ScannedSong> {
-        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+    private fun queryMediaStoreSongs(collection: Uri, minimumGenerationExclusive: Long?): List<ScannedSong> {
         val projection = mediaStoreAudioProjection(Build.VERSION.SDK_INT)
         val selectionParts = mutableListOf(
             "${MediaStore.Audio.Media.IS_MUSIC} != 0",
@@ -263,14 +187,14 @@ class DeviceLibraryScanner(
                 "${MediaStore.Audio.Media.DATE_ADDED} DESC",
             )?.use { cursor ->
                 while (cursor.moveToNext()) {
-                    add(cursor.toScannedSong(collection))
+                    val song = cursor.toScannedSong(collection)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || isProvenEmulatedPath(song.relativePath)) add(song)
                 }
-            }
+            } ?: throw IOException("MediaStore returned no metadata cursor.")
         }
     }
 
-    private fun queryCurrentMediaStoreIds(): Set<String> {
-        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+    private fun queryCurrentMediaStoreIds(collection: Uri): Set<String> {
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND " +
             "${MediaStore.Audio.Media.DURATION} >= 30000"
         return buildSet {
@@ -283,9 +207,9 @@ class DeviceLibraryScanner(
             )?.use { cursor ->
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
                 while (cursor.moveToNext()) {
-                    add("media:${cursor.getLong(idColumn)}")
+                    add(cursor.getLong(idColumn).toString())
                 }
-            }
+            } ?: throw IOException("MediaStore returned no identity cursor.")
         }
     }
 
@@ -294,9 +218,8 @@ class DeviceLibraryScanner(
         val rawTrackNumber = getInt(getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK))
         val trackDiscNumbers = decodeMediaStoreTrackNumber(rawTrackNumber)
         val contentUri = ContentUris.withAppendedId(collection, mediaId)
-        val albumId = getLong(getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID))
         return ScannedSong(
-            id = "media:$mediaId",
+            id = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) mediaId.toString() else sourceKey(mediaId.toString(), getString(getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)).orEmpty()),
             sourceType = SongSourceType.MEDIA_STORE,
             contentUri = contentUri.toString(),
             title = getString(getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)),
@@ -315,81 +238,24 @@ class DeviceLibraryScanner(
             relativePath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 getString(getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH))
             } else {
-                null
+                getString(getColumnIndexOrThrow(MediaStore.Audio.Media.DATA))
             },
             mimeType = getString(getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)),
-            artworkUri = albumArtUri(albumId, contentUri.toString()),
+            artworkUri = contentUri.toString(),
         )
     }
 
-    private fun albumArtUri(albumId: Long, fallbackContentUri: String): String =
-        if (albumId > 0L) {
-            ContentUris.withAppendedId(
-                Uri.parse("content://media/external/audio/albumart"),
-                albumId,
-            ).toString()
-        } else {
-            fallbackContentUri
-        }
-
-    private fun scanImportedRoots(
-        importedRoots: List<String>,
-        cachedDocumentSongs: List<ScannedSong>,
-        reusableCachedSongs: List<ScannedSong>,
-        forceFull: Boolean,
-    ): DocumentScan {
-        val destination = mutableListOf<ScannedSong>()
-        val cachedById = cachedDocumentSongs.associateBy(ScannedSong::id)
-        val cachedByCanonicalPath = reusableCachedSongs.mapNotNull { song ->
-            ScannedSongDeduper.canonicalPathKey(song)?.let { path -> path to song }
-        }.toMap()
-        val counters = DocumentScanCounters()
-        var isComplete = true
-        importedRoots.forEach { rawUri ->
-            val uri = Uri.parse(rawUri)
-            val walkSucceeded = runCatching {
-                if (DocumentsContract.isTreeUri(uri)) {
-                    walkDocumentTree(
-                        treeUri = uri,
-                        destination = destination,
-                        cachedById = cachedById,
-                        cachedByCanonicalPath = cachedByCanonicalPath,
-                        forceFull = forceFull,
-                        counters = counters,
-                    )
-                } else {
-                    val root = DocumentFile.fromSingleUri(context, uri)
-                        ?: throw IOException("Unable to open imported document root.")
-                    walkDocument(
-                        file = root,
-                        destination = destination,
-                        cachedById = cachedById,
-                        cachedByCanonicalPath = cachedByCanonicalPath,
-                        forceFull = forceFull,
-                        counters = counters,
-                    )
-                }
-            }.isSuccess
-            if (!walkSucceeded) {
-                isComplete = false
-                destination += cachedDocumentSongs.forRoot(uri)
-            }
-        }
-        return DocumentScan(
-            songs = destination.associateBy(ScannedSong::id).values.toList(),
-            filesVisited = counters.filesVisited,
-            metadataReads = counters.metadataReads,
-            metadataFailures = counters.metadataFailures,
-            cachedSongsReused = counters.cachedSongsReused,
-            isComplete = isComplete,
-        )
+    private fun isProvenEmulatedPath(path: String?): Boolean {
+        if (path == null) return false
+        val root = android.os.Environment.getExternalStorageDirectory().canonicalFile
+        val file = java.io.File(path).canonicalFile
+        return file.path.startsWith(root.path.trimEnd('/') + "/")
     }
 
     private fun walkDocumentTree(
         treeUri: Uri,
         destination: MutableList<ScannedSong>,
         cachedById: Map<String, ScannedSong>,
-        cachedByCanonicalPath: Map<String, ScannedSong>,
         forceFull: Boolean,
         counters: DocumentScanCounters,
     ) {
@@ -399,7 +265,6 @@ class DeviceLibraryScanner(
             parentDocumentId = rootDocumentId,
             destination = destination,
             cachedById = cachedById,
-            cachedByCanonicalPath = cachedByCanonicalPath,
             forceFull = forceFull,
             counters = counters,
         )
@@ -410,10 +275,11 @@ class DeviceLibraryScanner(
         parentDocumentId: String,
         destination: MutableList<ScannedSong>,
         cachedById: Map<String, ScannedSong>,
-        cachedByCanonicalPath: Map<String, ScannedSong>,
         forceFull: Boolean,
         counters: DocumentScanCounters,
+        visited: MutableSet<String> = mutableSetOf(),
     ) {
+        if (!visited.add(parentDocumentId)) return
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
             treeUri,
             parentDocumentId,
@@ -426,6 +292,9 @@ class DeviceLibraryScanner(
             null,
         ) ?: throw IOException("Document provider returned no children cursor.")
         cursor.use {
+            if (it.extras.getBoolean(DocumentsContract.EXTRA_LOADING, false)) {
+                throw IOException("Document provider enumeration is still loading.")
+            }
             val idColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val nameColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
             val mimeColumn = it.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
@@ -440,9 +309,9 @@ class DeviceLibraryScanner(
                         parentDocumentId = documentId,
                         destination = destination,
                         cachedById = cachedById,
-                        cachedByCanonicalPath = cachedByCanonicalPath,
                         forceFull = forceFull,
                         counters = counters,
+                        visited = visited,
                     )
                 } else if (isAudioCandidate(mimeType, displayName)) {
                     val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
@@ -462,7 +331,6 @@ class DeviceLibraryScanner(
                         ),
                         destination = destination,
                         cachedById = cachedById,
-                        cachedByCanonicalPath = cachedByCanonicalPath,
                         forceFull = forceFull,
                         counters = counters,
                     )
@@ -475,22 +343,11 @@ class DeviceLibraryScanner(
         file: DocumentFile,
         destination: MutableList<ScannedSong>,
         cachedById: Map<String, ScannedSong>,
-        cachedByCanonicalPath: Map<String, ScannedSong>,
         forceFull: Boolean,
         counters: DocumentScanCounters,
     ) {
         if (file.isDirectory) {
-            file.listFiles().forEach { child ->
-                walkDocument(
-                    file = child,
-                    destination = destination,
-                    cachedById = cachedById,
-                    cachedByCanonicalPath = cachedByCanonicalPath,
-                    forceFull = forceFull,
-                    counters = counters,
-                )
-            }
-            return
+            throw IOException("A directory requires an exact tree grant.")
         }
         if (!file.isFile || !file.isAudioCandidate()) return
 
@@ -509,7 +366,6 @@ class DeviceLibraryScanner(
             descriptor = descriptor,
             destination = destination,
             cachedById = cachedById,
-            cachedByCanonicalPath = cachedByCanonicalPath,
             forceFull = forceFull,
             counters = counters,
         )
@@ -520,20 +376,12 @@ class DeviceLibraryScanner(
         descriptor: DocumentDescriptor,
         destination: MutableList<ScannedSong>,
         cachedById: Map<String, ScannedSong>,
-        cachedByCanonicalPath: Map<String, ScannedSong>,
         forceFull: Boolean,
         counters: DocumentScanCounters,
     ) {
         counters.filesVisited++
-        val cachedByDocumentId = cachedById[descriptor.id]
-        val canonicalPath = ScannedSongDeduper.canonicalDocumentPathKey(
-            contentUri = descriptor.contentUri,
-            relativePath = descriptor.relativePath,
-            displayName = descriptor.displayName,
-        )
-        val cachedByPath = canonicalPath?.let(cachedByCanonicalPath::get)
-        val cached = cachedByDocumentId ?: cachedByPath
-        val matchedByCanonicalPath = cachedByDocumentId == null && cachedByPath != null
+        val cached = SourceIdentity.documentKey(descriptor.contentUri)?.let(cachedById::get)
+        val matchedByCanonicalPath = false
         if (
             !forceFull && cached != null &&
             canReuseCachedDocument(cached, descriptor, matchedByCanonicalPath)
@@ -551,7 +399,7 @@ class DeviceLibraryScanner(
                 destination += cached.asDocumentSong(descriptor)
                 counters.cachedSongsReused++
             }
-            return
+            throw IOException("Document metadata read failed; root authority withheld.")
         }
         val duration = metadata.durationMs ?: 0L
         if (duration <= 0L || duration in 1L..<30_000L) return
@@ -585,24 +433,6 @@ class DeviceLibraryScanner(
         return type.startsWith("audio/") || SUPPORTED_EXTENSIONS.any(name::endsWith)
     }
 
-    private fun List<ScannedSong>.filterSource(sourceType: SongSourceType): List<ScannedSong> =
-        filter { it.sourceType == sourceType }
-
-    private fun List<ScannedSong>.forRoot(rootUri: Uri): List<ScannedSong> {
-        if (!DocumentsContract.isTreeUri(rootUri)) {
-            return filter { it.contentUri == rootUri.toString() }
-        }
-        val treeId = runCatching { DocumentsContract.getTreeDocumentId(rootUri) }.getOrNull()
-            ?: return emptyList()
-        return filter { song ->
-            val songUri = Uri.parse(song.contentUri)
-            songUri.authority == rootUri.authority &&
-                runCatching { DocumentsContract.getDocumentId(songUri) }
-                    .getOrNull()
-                    ?.let { documentId -> documentId == treeId || documentId.startsWith("$treeId/") } == true
-        }
-    }
-
     private companion object {
         val DOCUMENT_PROJECTION = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
@@ -622,25 +452,6 @@ class DeviceLibraryScanner(
         )
     }
 }
-
-private data class MediaStoreScan(
-    val songs: List<ScannedSong>,
-    val permissionRequired: Boolean,
-    val checkpoint: MediaStoreCheckpoint?,
-    val checkpointInvalidated: Boolean,
-    val rowsRead: Int,
-    val idRowsRead: Int,
-    val cachedSongsReused: Int,
-)
-
-private data class DocumentScan(
-    val songs: List<ScannedSong>,
-    val filesVisited: Int,
-    val metadataReads: Int,
-    val metadataFailures: Int,
-    val cachedSongsReused: Int,
-    val isComplete: Boolean,
-)
 
 private class DocumentScanCounters(
     var filesVisited: Int = 0,
@@ -732,6 +543,8 @@ internal fun mediaStoreAudioProjection(sdkInt: Int): Array<String> =
         add(MediaStore.Audio.Media.DISPLAY_NAME)
         if (sdkInt >= Build.VERSION_CODES.Q) {
             add(MediaStore.Audio.Media.RELATIVE_PATH)
+        } else {
+            add(MediaStore.Audio.Media.DATA)
         }
         add(MediaStore.Audio.Media.MIME_TYPE)
         add(MediaStore.Audio.Media.ALBUM_ID)

@@ -14,19 +14,22 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SongDao : SongLookupQueries {
-    @Query("SELECT * FROM songs")
+    @Query("SELECT * FROM songs WHERE id NOT IN (SELECT songId FROM legacy_song_protection)")
     fun observeSongs(): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM songs WHERE id NOT IN (SELECT songId FROM legacy_song_protection)")
+    suspend fun getAvailableSongs(): List<SongEntity>
 
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun countSongs(): Int
 
-    @Query("SELECT * FROM songs WHERE isFavorite = 1")
+    @Query("SELECT * FROM songs WHERE isFavorite = 1 AND id NOT IN (SELECT songId FROM legacy_song_protection)")
     fun observeFavoriteSongs(): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE id IN (:ids)")
+    @Query("SELECT * FROM songs WHERE id IN (:ids) AND id NOT IN (SELECT songId FROM legacy_song_protection)")
     override suspend fun getSongsByIds(ids: List<String>): List<SongEntity>
 
-    @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM songs WHERE id = :id AND id NOT IN (SELECT songId FROM legacy_song_protection) LIMIT 1")
     suspend fun getSongById(id: String): SongEntity?
 
     @Query("SELECT * FROM songs")

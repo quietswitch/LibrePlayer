@@ -2,6 +2,10 @@ package com.libreplayer.data.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.libreplayer.data.database.dao.SourceDao
+import com.libreplayer.data.database.entity.LibrarySourceEntity
+import com.libreplayer.data.database.entity.SongSourceEntity
+import com.libreplayer.data.database.entity.LegacySongProtectionEntity
 import com.libreplayer.data.database.dao.AlbumDao
 import com.libreplayer.data.database.dao.ArtistDao
 import com.libreplayer.data.database.dao.ImportedRootDao
@@ -25,11 +29,15 @@ import com.libreplayer.data.database.entity.SongEntity
         PlaylistEntity::class,
         PlaylistSongEntity::class,
         RecentlyPlayedEntity::class,
+        LibrarySourceEntity::class,
+        SongSourceEntity::class,
+        LegacySongProtectionEntity::class,
     ],
-    version = 1,
-    exportSchema = false,
+    version = 2,
+    exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun sourceDao(): SourceDao
     abstract fun songDao(): SongDao
     abstract fun albumDao(): AlbumDao
     abstract fun artistDao(): ArtistDao

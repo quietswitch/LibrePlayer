@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.withTransaction
 import com.libreplayer.data.database.AppDatabase
+import com.libreplayer.data.database.MIGRATION_1_2
 import com.libreplayer.data.repository.DefaultLibraryRepository
 import com.libreplayer.data.repository.LibraryRefreshStore
 import com.libreplayer.data.repository.DefaultPlaylistRepository
@@ -24,6 +25,7 @@ class AppContainer(context: Context) {
 
     val database: AppDatabase by lazy {
         Room.databaseBuilder(appContext, AppDatabase::class.java, "libreplayer.db")
+            .addMigrations(MIGRATION_1_2)
             .fallbackToDestructiveMigration()
             .build()
     }

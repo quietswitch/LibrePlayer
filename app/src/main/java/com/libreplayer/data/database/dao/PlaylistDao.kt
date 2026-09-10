@@ -44,7 +44,7 @@ interface PlaylistDao : PlaylistQueries {
         """
         SELECT playlists.*, COUNT(songs.id) AS songCount FROM playlists
         LEFT JOIN playlist_songs ON playlist_songs.playlistId = playlists.id
-        LEFT JOIN songs ON songs.id = playlist_songs.songId
+        LEFT JOIN songs ON songs.id = playlist_songs.songId AND songs.id NOT IN (SELECT songId FROM legacy_song_protection)
         GROUP BY playlists.id
         ORDER BY playlists.updatedAtEpochMillis DESC, playlists.name ASC, playlists.id ASC
         """,
@@ -82,7 +82,7 @@ interface PlaylistDao : PlaylistQueries {
                songs.artistSortKey AS song_artistSortKey,
                songs.albumSortKey AS song_albumSortKey
         FROM playlist_songs
-        INNER JOIN songs ON songs.id = playlist_songs.songId
+        INNER JOIN songs ON songs.id = playlist_songs.songId AND songs.id NOT IN (SELECT songId FROM legacy_song_protection)
         WHERE playlist_songs.playlistId = :playlistId
         ORDER BY playlist_songs.position ASC, playlist_songs.songId ASC
         """,
@@ -143,7 +143,7 @@ interface PlaylistDao : PlaylistQueries {
                songs.artistSortKey AS song_artistSortKey,
                songs.albumSortKey AS song_albumSortKey
         FROM playlist_songs
-        INNER JOIN songs ON songs.id = playlist_songs.songId
+        INNER JOIN songs ON songs.id = playlist_songs.songId AND songs.id NOT IN (SELECT songId FROM legacy_song_protection)
         WHERE playlist_songs.playlistId = :playlistId
         ORDER BY playlist_songs.position ASC, playlist_songs.songId ASC
         """,
