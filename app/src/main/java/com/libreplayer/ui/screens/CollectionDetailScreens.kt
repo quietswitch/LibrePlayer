@@ -190,16 +190,8 @@ fun AlbumDetailScreen(
 fun ArtistDetailScreen(
     artistId: String,
     libraryState: LibraryScreenState,
-    settings: AppSettings,
     onBack: () -> Unit,
-    onPlaySongs: (List<Song>, Int) -> Unit,
-    onAddToQueue: (Song) -> Unit,
-    onToggleFavorite: (String) -> Unit,
-    onOpenAudioDetails: (String) -> Unit,
     onOpenAlbum: (String) -> Unit,
-    onOpenArtist: (String) -> Unit,
-    playlists: List<UserPlaylist>,
-    onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
     // Navigation has already decoded String route arguments exactly once.
     val songs = remember(libraryState.songs, artistId) {
@@ -214,16 +206,8 @@ fun ArtistDetailScreen(
         title = artist?.name ?: "Artist",
         albums = albums,
         songs = songs,
-        settings = settings,
-        playlists = playlists,
         onBack = onBack,
         onOpenAlbum = onOpenAlbum,
-        onPlaySongs = onPlaySongs,
-        onAddToQueue = onAddToQueue,
-        onToggleFavorite = onToggleFavorite,
-        onOpenAudioDetails = onOpenAudioDetails,
-        onOpenArtist = onOpenArtist,
-        onAddSongToPlaylist = onAddSongToPlaylist,
     )
 }
 
@@ -233,19 +217,9 @@ private fun ArtistCollectionScreen(
     title: String,
     albums: List<com.libreplayer.data.repository.Album>,
     songs: List<Song>,
-    settings: AppSettings,
-    playlists: List<UserPlaylist>,
     onBack: () -> Unit,
     onOpenAlbum: (String) -> Unit,
-    onPlaySongs: (List<Song>, Int) -> Unit,
-    onAddToQueue: (Song) -> Unit,
-    onToggleFavorite: (String) -> Unit,
-    onOpenAudioDetails: (String) -> Unit,
-    onOpenArtist: (String) -> Unit,
-    onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
-    var selectedSongForPlaylist by remember { mutableStateOf<Song?>(null) }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -293,57 +267,8 @@ private fun ArtistCollectionScreen(
                         DividerItem()
                     }
                 }
-
-                item {
-                    SectionHeader("Songs")
-                }
-
-                itemsIndexed(
-                    items = songs,
-                    key = { _, song -> song.id },
-                ) { index, song ->
-                    SongRow(
-                        title = displayTitle(song, settings),
-                        subtitle = displaySubtitle(song),
-                        durationMs = song.durationMs,
-                        artworkUri = song.artworkUri,
-                        fallbackArtworkUri = song.contentUri,
-                        sourceRevisionEpochSeconds = song.dateModifiedEpochSeconds,
-                        trailingContent = {
-                            SongOverflowMenu(
-                                song = song,
-                                onToggleFavorite = onToggleFavorite,
-                                onAddToQueue = onAddToQueue,
-                                onAddToPlaylist = {
-                                    selectedSongForPlaylist = song
-                                },
-                                onOpenDetails = onOpenAudioDetails,
-                                onOpenAlbum = onOpenAlbum,
-                                onOpenArtist = onOpenArtist,
-                            )
-                        },
-                        onClick = {
-                            onPlaySongs(songs, index)
-                        },
-                    )
-                    DividerItem()
-                }
             }
         }
-    }
-
-    selectedSongForPlaylist?.let { song ->
-        PlaylistPickerDialog(
-            song = song,
-            playlists = playlists,
-            onDismiss = {
-                selectedSongForPlaylist = null
-            },
-            onSelectPlaylist = { playlistId ->
-                onAddSongToPlaylist(playlistId, song.id)
-                selectedSongForPlaylist = null
-            },
-        )
     }
 }
 

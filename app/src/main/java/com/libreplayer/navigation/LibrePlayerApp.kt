@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Settings
@@ -80,29 +79,9 @@ fun LibrePlayerApp(appContainer: AppContainer) {
         ) { innerPadding ->
             NavHost(
                 navController = navController,
-                startDestination = AppRoute.Songs.route,
+                startDestination = AppRoute.Albums.route,
                 modifier = Modifier.padding(innerPadding),
             ) {
-                composable(AppRoute.Songs.route) {
-                    SongsAlbumsArtistsScreen(
-                        title = "Songs",
-                        section = SongsSection.SONGS,
-                        libraryState = libraryState,
-                        settings = settings,
-                        onSearch = { navController.navigate(AppRoute.Search.route) },
-                        onSortChange = libraryViewModel::setDefaultSortOption,
-                        onGrantPermissionRescan = libraryViewModel::rescanLibrary,
-                        onToggleFavorite = libraryViewModel::toggleFavorite,
-                        onPlaySongs = playbackViewModel::playSong,
-                        onAddToQueue = playbackViewModel::addToQueue,
-                        onOpenAudioDetails = { navController.navigate(AppRoute.AudioDetails.create(it)) },
-                        onOpenAlbum = { navController.navigate(AppRoute.AlbumDetail.create(it)) },
-                        onOpenArtist = { navController.navigate(AppRoute.ArtistDetail.create(it)) },
-                        playlists = libraryState.playlists,
-                        onAddSongToPlaylist = libraryViewModel::addSongToPlaylist,
-                        contentPadding = PaddingValues(0.dp),
-                    )
-                }
                 composable(AppRoute.Albums.route) {
                     SongsAlbumsArtistsScreen(
                         title = "Albums",
@@ -214,16 +193,8 @@ fun LibrePlayerApp(appContainer: AppContainer) {
                     ArtistDetailScreen(
                         artistId = artistId,
                         libraryState = libraryState,
-                        settings = settings,
                         onBack = navController::navigateUp,
-                        onPlaySongs = playbackViewModel::playSong,
-                        onAddToQueue = playbackViewModel::addToQueue,
-                        onToggleFavorite = libraryViewModel::toggleFavorite,
-                        onOpenAudioDetails = { navController.navigate(AppRoute.AudioDetails.create(it)) },
                         onOpenAlbum = { navController.navigate(AppRoute.AlbumDetail.create(it)) },
-                        onOpenArtist = { navController.navigate(AppRoute.ArtistDetail.create(it)) },
-                        playlists = libraryState.playlists,
-                        onAddSongToPlaylist = libraryViewModel::addSongToPlaylist,
                     )
                 }
                 composable(
@@ -344,7 +315,7 @@ private fun BottomBarContent(
                             onClick = {
                                 if (currentRoute != destination.route) {
                                     navController.navigate(destination.route) {
-                                        popUpTo(AppRoute.Songs.route) { saveState = true }
+                                        popUpTo(AppRoute.Albums.route) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -388,7 +359,6 @@ private data class TopLevelDestination(
 )
 
 private val topLevelRoutes = listOf(
-    TopLevelDestination(AppRoute.Songs.route, "Songs", Icons.Filled.LibraryMusic),
     TopLevelDestination(AppRoute.Albums.route, "Albums", Icons.Filled.Album),
     TopLevelDestination(AppRoute.Artists.route, "Artists", Icons.Filled.Person),
     TopLevelDestination(AppRoute.Playlists.route, "Playlists", Icons.Filled.PlaylistPlay),
