@@ -34,7 +34,7 @@ Version `1.1.0` (`versionCode` 6) is the current development and release candida
 
 ## Highest Current Risks
 
-- The local working tree contains Q3.7 storage instrumentation source and its UI Automator test dependency that are not yet present on GitHub `master`; this delta must be reconciled before the 1.1.0 release tag is cut
+- The deferred local Q3.7 removable-volume/LARGE instrumentation apparatus is not part of the 1.1.0 release tree; it still targets the removed Songs destination and must be revised before any future Q3.7 continuation
 - Q3.7 removable-volume and LARGE authority remain deferred
 - OEM-specific permission and storage behavior can still vary beyond app control
 - Album and artist artwork remains representative, not canonical
@@ -45,7 +45,7 @@ Q1.1 Performance Authority and Q2 Playback Mastery are closed. Q3.1 through Q3.6
 
 ## Next Recommended Step
 
-Reconcile the local-only Q3.7 instrumentation files with GitHub, rerun the final 1.1.0 release gates on the reconciled tree, then create the `v1.1.0` tag and publish the signed APK.
+Run the final 1.1.0 release gates on GitHub `master`, produce and verify the unsigned release artifact, then sign the exact verified artifact with the existing private release key before creating the `v1.1.0` tag and publishing the signed APK.
 
 ## Benchmark Foundation
 
