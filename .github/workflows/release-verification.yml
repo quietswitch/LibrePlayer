@@ -31,7 +31,7 @@ jobs:
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          sdkmanager --list_installed | grep -E 'platforms;android-36|build-tools;36'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E 'platforms;android-36|build-tools;36'
 
       - name: Verify LibrePlayer 1.1.0
         run: |
