@@ -10,7 +10,7 @@
 - Adds source-scoped library provenance and an explicit non-destructive Room v1-to-v2 migration while preserving established Song IDs and stored user references where provenance can be proven.
 - Removes the top-level Songs destination, makes Albums the default library destination, and focuses artist detail on albums.
 - Retains LibrePlayer's offline/local-first posture with no Internet permission, accounts, analytics, or telemetry.
-- Final 1.1.0 tagging and APK publication remain pending release verification and signing. Deferred local Q3.7 removable-volume/LARGE instrumentation is excluded from this release tree and must be revised before future use because it targets the removed Songs destination.
+- The repository-native release-verification workflow passes the 1.1.0 candidate; tagging and APK publication remain pending signing with the existing permanent release key. Deferred local Q3.7 removable-volume/LARGE instrumentation is excluded from this release tree and must be revised before future use because it targets the removed Songs destination.
 
 ## 1.0.4 (versionCode 5) — 2026-08-24
 
