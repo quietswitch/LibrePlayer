@@ -57,7 +57,7 @@ Set temporary PowerShell variables for the local session. The keystore path and 
 $buildTools = Join-Path '<ANDROID_SDK>' 'build-tools\<BUILD_TOOLS_VERSION>'
 $unsignedApk = '.\app\build\outputs\apk\release\app-release-unsigned.apk'
 $alignedApk = '.\app\build\outputs\apk\release\app-release-aligned.apk'
-$signedApk = '.\app\build\outputs\apk\release\LibrePlayer-1.0.4.apk'
+$signedApk = '.\app\build\outputs\apk\release\LibrePlayer-1.1.0.apk'
 $keyStore = '<SECURE_KEYSTORE_PATH>'
 $keyAlias = '<KEY_ALIAS>'
 
