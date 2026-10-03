@@ -2,7 +2,7 @@
 
 ## Current Development Status
 
-Version `1.1.0` (`versionCode` 6) is the current development and release candidate. The latest published GitHub release remains `v1.0.4` until 1.1.0 is fully verified, signed, tagged, and published.
+Version `1.1.0` (`versionCode` 6) is the current release candidate. The exact GitHub `master` tree has passed the repository-native release-verification workflow; the latest published GitHub release remains `v1.0.4` until the verified 1.1.0 artifact is signed with the existing permanent release key, tagged, and published.
 
 ## What Is Working
 
@@ -45,7 +45,7 @@ Q1.1 Performance Authority and Q2 Playback Mastery are closed. Q3.1 through Q3.6
 
 ## Next Recommended Step
 
-Run the final 1.1.0 release gates on GitHub `master`, produce and verify the unsigned release artifact, then sign the exact verified artifact with the existing private release key before creating the `v1.1.0` tag and publishing the signed APK.
+Release verification is complete for commit `8d5182f48c436aba0c7be40fb94e88289ae5e6af`: 199 unit tests passed with zero failures/skips; lint completed with 45 warnings and 3 hints; debug, release, Android-test, and benchmark assemblies passed. The unsigned release APK is 19,946,505 bytes with SHA-256 `e7087fbd4a72721d7ae8ddb8453357bb6efb7cd9785d4bd255029ecf9465d0d3`. Next: sign that exact APK with the existing permanent release key, verify the signer/certificate and signed APK hash, then create the `v1.1.0` tag and publish the signed APK.
 
 ## Benchmark Foundation
 
