@@ -161,11 +161,11 @@ private fun AudioDetailsScreen(
                 EmptyState(
                     title = "Audio access needed",
                     message = if (permissionAction == AudioPermissionAction.OPEN_SETTINGS) {
-                        "LibrePlayer needs audio access to inspect this MediaStore track. Open Android settings and allow Music and audio access, then return here."
+                        "LocalTracklist needs audio access to inspect this MediaStore track. Open Android settings and allow Music and audio access, then return here."
                     } else if (deniedRequestCount > 0) {
-                        "LibrePlayer still needs audio access to inspect this MediaStore track. You can retry here before opening Android settings."
+                        "LocalTracklist still needs audio access to inspect this MediaStore track. You can retry here before opening Android settings."
                     } else {
-                        "LibrePlayer needs audio access to inspect this MediaStore track. Grant access to load the available file details."
+                        "LocalTracklist needs audio access to inspect this MediaStore track. Grant access to load the available file details."
                     },
                     modifier = Modifier.padding(contentPadding),
                     action = {

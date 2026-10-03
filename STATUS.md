@@ -1,8 +1,8 @@
-# Status
+# LocalTracklist Status
 
 ## Current Development Status
 
-Version `1.1.0` (`versionCode` 6) is the current release candidate. The repository-native release-verification workflow is the authority for the exact candidate tree. The latest published GitHub release remains `v1.0.4` until the unsigned artifact from the latest successful verification run whose head SHA equals current `master` is signed with the existing permanent release key, tagged, and published.
+LocalTracklist, formerly LibrePlayer, is a local music player for Android published by quietswitch. LibrePlayer `v1.1.0` is published from commit `28d9b63c2960560f62fb2fe45937a6c0956c2d13`; that verified release tree is the base of this controlled rebrand. The rebrand retains `versionName` `1.1.0` and `versionCode` 6 for independent review. A future LocalTracklist release version will be decided separately.
 
 ## What Is Working
 
@@ -45,7 +45,7 @@ Q1.1 Performance Authority and Q2 Playback Mastery are closed. Q3.1 through Q3.6
 
 ## Next Recommended Step
 
-The repository-native `Release verification` workflow is the authority for the release candidate: it must pass 199 unit tests with zero failures/skips, lint, debug/release assembly, Android-test assembly, benchmark assembly, declared-version checks, artifact hashing, and artifact upload on the exact release commit. Sign only the unsigned APK from that successful release-commit workflow artifact with the existing permanent release key; verify the signer/certificate and signed APK hash before creating the `v1.1.0` tag and publishing the signed APK.
+Review the controlled LocalTracklist rebrand against the published 1.1.0 source tree. The existing core verification must still pass 199 unit tests with zero failures/skips, lint, debug/release assembly, Android-test assembly, and benchmark assembly. Preserve `com.libreplayer`, data identities, the permanent signing key/certificate, and the accepted test authorities. No release signing, publication, repository rename, or version bump is part of this rebrand; published tags and historical artifacts remain unchanged. The repository-native `Release verification` workflow remains the authority for future release-commit checks and artifact evidence.
 
 ## Benchmark Foundation
 

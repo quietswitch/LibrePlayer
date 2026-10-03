@@ -1,6 +1,12 @@
-# LibrePlayer
+# LocalTracklist
 
-LibrePlayer is a local-first Android music player for people who want a simple, privacy-respecting app for playing audio files already on their device. It is designed as a focused offline player, not a media ecosystem.
+Local music player for Android.
+
+Publisher/developer: quietswitch.
+
+LocalTracklist, formerly LibrePlayer, is the same application. Published v1.0.4 and v1.1.0 releases retain the LibrePlayer name; Android package identity remains `com.libreplayer`.
+
+LocalTracklist is a local-first Android music player for people who want a simple, privacy-respecting app for playing audio files already on their device. It is designed as a focused offline player, not a media ecosystem.
 
 ## Core Purpose
 

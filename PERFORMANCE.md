@@ -1,5 +1,7 @@
 # Performance Development Authority
 
+LocalTracklist retains the accepted LibrePlayer performance authorities. Historical product names, artifacts, fixtures, device identifiers, and measurements below remain unchanged.
+
 Q1.1 separates infrastructure validation from performance claims. Q1.1b defines deterministic inputs and a reproducible v1.0.4 reference. Q1.1c adds controlled cold-start regression authority for a cached MEDIUM library. Q1.1d adds controlled interactive library-UI authority on API 36. Q1.1e adds controlled MediaStore-to-LibrePlayer synchronization authority. None of these channels defines universal device performance or a product pass/fail threshold.
 
 ## Fixture profiles

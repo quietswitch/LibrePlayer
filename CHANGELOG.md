@@ -1,6 +1,11 @@
 # Changelog
 
-## 1.1.0 (versionCode 6) — Unreleased
+## Unreleased — LocalTracklist rebrand
+
+- Renames current public branding to LocalTracklist, with the descriptor "Local music player for Android." and publisher/developer quietswitch.
+- Preserves Android identity `com.libreplayer`, version 1.1.0/code 6, existing data and signing identities, and application behavior. The next release version is undecided.
+
+## 1.1.0 (versionCode 6) — Published as LibrePlayer
 
 - Builds on the public 1.0.4 release with the 28 post-release development commits that established the current development line.
 - Adds reusable performance authority, deterministic fixtures, benchmark infrastructure, and an accepted packaged Baseline Profile.
@@ -10,7 +15,7 @@
 - Adds source-scoped library provenance and an explicit non-destructive Room v1-to-v2 migration while preserving established Song IDs and stored user references where provenance can be proven.
 - Removes the top-level Songs destination, makes Albums the default library destination, and focuses artist detail on albums.
 - Retains LibrePlayer's offline/local-first posture with no Internet permission, accounts, analytics, or telemetry.
-- The repository-native release-verification workflow passes the 1.1.0 candidate; tagging and APK publication remain pending signing with the existing permanent release key. Deferred local Q3.7 removable-volume/LARGE instrumentation is excluded from this release tree and must be revised before future use because it targets the removed Songs destination.
+- Published as LibrePlayer `v1.1.0` from commit `28d9b63c2960560f62fb2fe45937a6c0956c2d13` using the existing permanent release key. Deferred local Q3.7 removable-volume/LARGE instrumentation is excluded from this release tree and must be revised before future use because it targets the removed Songs destination.
 
 ## 1.0.4 (versionCode 5) — 2026-08-24
 

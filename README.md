@@ -1,6 +1,12 @@
-# LibrePlayer
+# LocalTracklist
 
-LibrePlayer is a free, open-source Android music player for audio files stored on the device. It is offline and local-first: playback, library data, playlists, favorites, settings, and history remain on the device.
+Local music player for Android.
+
+Publisher/developer: quietswitch.
+
+LocalTracklist, formerly LibrePlayer, is the same application. Published v1.0.4 and v1.1.0 releases retain the LibrePlayer name; Android package identity remains `com.libreplayer`.
+
+LocalTracklist is a free, open-source Android music player for audio files stored on the device. It is offline and local-first: playback, library data, playlists, favorites, settings, and history remain on the device.
 
 ## Features
 
@@ -23,7 +29,7 @@ LibrePlayer is a free, open-source Android music player for audio files stored o
 
 ## Permissions
 
-LibrePlayer requests only the permissions needed for local playback:
+LocalTracklist requests only the permissions needed for local playback:
 
 - `READ_MEDIA_AUDIO`: reads audio indexed by MediaStore on Android 13 and newer.
 - `READ_EXTERNAL_STORAGE`: reads local audio on Android 12L and older; the manifest limits this permission to API 32.
@@ -31,7 +37,7 @@ LibrePlayer requests only the permissions needed for local playback:
 - `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: identifies that foreground service as media playback on supported Android versions.
 - `WAKE_LOCK`: lets active playback continue reliably while the screen is off.
 
-Folder import uses Android's system document picker, which grants access only to locations selected by the user. LibrePlayer does not request `MANAGE_EXTERNAL_STORAGE` or `INTERNET`.
+Folder import uses Android's system document picker, which grants access only to locations selected by the user. LocalTracklist does not request `MANAGE_EXTERNAL_STORAGE` or `INTERNET`.
 
 ## Privacy
 
@@ -68,7 +74,7 @@ The release task intentionally produces an unsigned APK. A public release APK mu
 
 ## Architecture
 
-LibrePlayer is a single-module Kotlin application using Jetpack Compose, Material 3, Media3/ExoPlayer, Room, DataStore, coroutines, and Flow. Playback uses Media3 and the codecs available through the Android platform, so format support can vary by Android version and device.
+LocalTracklist is a single-module Kotlin application using Jetpack Compose, Material 3, Media3/ExoPlayer, Room, DataStore, coroutines, and Flow. Playback uses Media3 and the codecs available through the Android platform, so format support can vary by Android version and device.
 
 ## Current Limitations
 
@@ -87,4 +93,4 @@ Issues and pull requests are welcome. Keep the app local-first, permissions mini
 
 ## License
 
-LibrePlayer is available under the MIT License. See [LICENSE](LICENSE).
+LocalTracklist is available under the MIT License. See [LICENSE](LICENSE).

@@ -1,5 +1,7 @@
 # Playback and queue semantics
 
+LocalTracklist retains this accepted LibrePlayer playback contract unchanged. The original product name and version below identify the authority under which it was established.
+
 This document is the controlling Q2 contract for LibrePlayer 1.0.4. It describes
 current product behavior; later playback work should preserve it unless a
 milestone explicitly changes the contract.

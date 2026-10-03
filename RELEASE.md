@@ -1,6 +1,8 @@
-# LibrePlayer Release Procedure
+# LocalTracklist Release Procedure
 
-This procedure produces and verifies a signed LibrePlayer APK without placing signing material in the repository. Commands are for Windows PowerShell and must be run from the repository root.
+LocalTracklist is published by quietswitch and was formerly named LibrePlayer. Published v1.0.4 and v1.1.0 releases keep their original names and artifacts. The controlled rebrand retains version 1.1.0/code 6 for review only; the next release version is a separate decision. Do not sign or publish a new APK as part of this rebrand.
+
+This procedure produces and verifies a signed LocalTracklist APK without placing signing material in the repository. Commands are for Windows PowerShell and must be run from the repository root.
 
 ## Prerequisites
 
@@ -13,9 +15,9 @@ This procedure produces and verifies a signed LibrePlayer APK without placing si
 
 Use placeholders such as `<ANDROID_SDK>`, `<BUILD_TOOLS_VERSION>`, `<SECURE_KEYSTORE_PATH>`, and `<KEY_ALIAS>` locally. Do not replace them with private values in tracked files.
 
-## Create the Permanent Signing Identity
+## Preserve the Permanent Signing Identity
 
-Do this only after the pre-publication audit has been accepted. The signing certificate is visible to anyone who inspects a released APK, so its subject must not contain a legal name, personal email address, organization, location, or other identifying information. Use only the public pseudonym `quietswitch` where an identity is required.
+The permanent release key already exists. Reuse that same key and certificate for LocalTracklist updates; do not generate a replacement for the rebrand. The initial key-creation instructions below are retained for historical reference only. The signing certificate is visible to anyone who inspects a released APK, so its subject must not contain a legal name, personal email address, organization, location, or other identifying information. Use only the public pseudonym `quietswitch` where an identity is required.
 
 Create the key outside the repository and let `keytool` request its passwords interactively:
 
@@ -51,7 +53,7 @@ app\build\outputs\apk\release\app-release-unsigned.apk
 
 ## Align and Sign
 
-Set temporary PowerShell variables for the local session. The keystore path and alias shown here are placeholders:
+The example below retains the historical `LibrePlayer-1.1.0.apk` filename; it is not an instruction to overwrite or republish that release. Choose a LocalTracklist artifact name only after the next release version is decided. Set temporary PowerShell variables for the local session. The keystore path and alias shown here are placeholders:
 
 ```powershell
 $buildTools = Join-Path '<ANDROID_SDK>' 'build-tools\<BUILD_TOOLS_VERSION>'

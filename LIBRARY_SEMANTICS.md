@@ -1,4 +1,6 @@
-# LibrePlayer Library Semantics
+# LocalTracklist Library Semantics
+
+LocalTracklist retains the accepted LibrePlayer library authorities. Historical platform observations, closeout records, and schema paths below keep their original names and versions.
 
 This document covers Q3.1 identity/metadata, Q3.2 browse grouping, Q3.3 sorting/search, Q3.4 metadata pathology, Q3.5 artwork, and Q3.6 playlists/local M3U interchange. It describes the current Room schema (version 1) without introducing a schema migration.
 
@@ -48,7 +50,7 @@ Folder information means the containing source-relative directory, not an assume
 - MediaStore uses `RELATIVE_PATH` where the platform exposes it.
 - SAF derives a provider/document-relative parent representation.
 
-LibrePlayer currently has no authoritative folder entity or folder-browsing screen. Folder strings aid display and conservative cross-source matching; they do not define a portable global identity.
+LocalTracklist currently has no authoritative folder entity or folder-browsing screen. Folder strings aid display and conservative cross-source matching; they do not define a portable global identity.
 
 ## Persistence and synchronization
 
@@ -134,11 +136,11 @@ For `n` Songs, the accepted implementation sorts in approximately `O(n log n)` a
 
 ## Metadata pathology semantics
 
-Q3.4 distinguishes behavior defined by LibrePlayer from values selected or transformed by Android's media stack. It does not make LibrePlayer a tag parser, repair malformed tags, or infer metadata that Android did not expose.
+Q3.4 distinguishes behavior defined by LocalTracklist from values selected or transformed by Android's media stack. It does not make LocalTracklist a tag parser, repair malformed tags, or infer metadata that Android did not expose.
 
-### LibrePlayer-defined behavior
+### LocalTracklist-defined behavior
 
-MediaStore title, artist, and album projections and retriever title, artist, and album strings are stored as received. Nullable Room fields remain nullable and have no application-level length cap. LibrePlayer does not persist filename, `Unknown artist`, or `Unknown album` presentation fallbacks into those raw fields; it also does not lowercase, trim, strip punctuation, or Unicode-normalize them. Derived sort keys, group IDs, and display fallbacks are separate values. Physical identity remains source ID plus content URI and never depends on metadata.
+MediaStore title, artist, and album projections and retriever title, artist, and album strings are stored as received. Nullable Room fields remain nullable and have no application-level length cap. LocalTracklist does not persist filename, `Unknown artist`, or `Unknown album` presentation fallbacks into those raw fields; it also does not lowercase, trim, strip punctuation, or Unicode-normalize them. Derived sort keys, group IDs, and display fallbacks are separate values. Physical identity remains source ID plus content URI and never depends on metadata.
 
 Null, empty, and whitespace-only title/artist/album values are unusable for presentation and grouping. Title then uses the filename stem; artist and album use their established fallback labels. Raw whitespace is not rewritten. Empty and whitespace-only artist/album values use the typed missing group component, so they cannot create an invisible group. A literal `Unknown Artist` or `Unknown Album` is a present source value and therefore has a different typed group ID from missing metadata.
 
@@ -192,7 +194,7 @@ Artwork is local presentation state, never Song, Album, or Artist identity. Artw
 
 ### Song sources and loading
 
-A Song carries one persisted local artwork locator and its playable content URI. For MediaStore rows, the primary locator is `content://media/external/audio/albumart/<ALBUM_ID>` when Android supplies a positive album ID, otherwise the audio row URI. For SAF rows, the document content URI is both the artwork candidate and audio locator. LibrePlayer does not copy embedded images into app storage.
+A Song carries one persisted local artwork locator and its playable content URI. For MediaStore rows, the primary locator is `content://media/external/audio/albumart/<ALBUM_ID>` when Android supplies a positive album ID, otherwise the audio row URI. For SAF rows, the document content URI is both the artwork candidate and audio locator. LocalTracklist does not copy embedded images into app storage.
 
 The UI tries each distinct candidate in order: persisted artwork locator, then playable content URI when different. On API 29 and newer it first asks `ContentResolver.loadThumbnail` for the surface-specific target; if that fails, it asks `MediaMetadataRetriever` for the local audio source's single platform-exposed embedded picture and decodes it with `BitmapFactory`. The accepted targets are 160 px for list/group rows, 144 px for the mini-player, and 768 px for Now Playing. Power-of-two sampling downsamples fallback decoding at the tested bounds. Image bytes are decoded on demand by a composed surface. Its coroutine is cancelled when the request changes or leaves composition, with cancellation checks between candidates; a synchronous platform decode already in progress is not forcibly interrupted.
 
@@ -208,7 +210,7 @@ The current product also renders Artist artwork. Artist members use a determinis
 
 ### Cache identity and invalidation
 
-LibrePlayer owns an in-memory decoded-bitmap cache only; it adds no artwork disk cache. Its collision-safe request key contains the requested size variant plus every ordered candidate's length-prefixed local URI and source `dateModified` revision. It is never based on album title, artist display name, or artwork pixels. Duplicate URIs fold to their newest revision without changing first occurrence order.
+LocalTracklist owns an in-memory decoded-bitmap cache only; it adds no artwork disk cache. Its collision-safe request key contains the requested size variant plus every ordered candidate's length-prefixed local URI and source `dateModified` revision. It is never based on album title, artist display name, or artwork pixels. Duplicate URIs fold to their newest revision without changing first occurrence order.
 
 The cache is byte-sized by each bitmap's allocation rather than entry count. Its budget is one sixteenth of the process maximum heap, clamped to 4–24 MiB; the API-36 authority environment selected 12,582,912 bytes. Changed source modification state creates a new request key, while a failed or placeholder result is not cached and therefore cannot poison a later success. The accepted same-source fixture retained its Song ID, content URI, and semantic Album ID while a refresh changed red artwork to blue and changed the revision-bearing cache key. Detection depends on the source exposing a changed locator or modification revision; silent byte replacement with an unchanged timestamp is not established. The cache budget covers retained cache bitmap allocations, not all in-flight decode bytes, UI-held bitmaps, keys, or platform caches.
 

@@ -30,7 +30,7 @@
 
 ## Legacy Or Replaced Repos
 
-No legacy or replaced repo is documented in this repo. Treat LibrePlayer as the active Android local-player codebase.
+No legacy or replaced repo is documented in this repo. Treat LocalTracklist as the active Android local-player codebase.
 
 ## This App Is Not For
 

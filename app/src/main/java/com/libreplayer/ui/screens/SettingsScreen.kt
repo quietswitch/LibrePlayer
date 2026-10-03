@@ -176,11 +176,11 @@ fun SettingsScreen(
             }
         }
         item {
-            SettingsCard(title = "About LibrePlayer") {
+            SettingsCard(title = "About LocalTracklist") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("LibrePlayer is a freeware, open-source, local-first music player for offline audio files.")
+                    Text("Local music player for Android. Free and open-source. Developer: quietswitch.")
                     Text("No ads. No analytics. No user accounts. No subscriptions. No cloud sync by default.")
-                    Text("Your music and metadata stay on-device. LibrePlayer does not upload your media off the device.")
+                    Text("Your music and metadata stay on-device. LocalTracklist does not upload your media off the device.")
                 }
             }
         }

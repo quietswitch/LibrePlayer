@@ -28,4 +28,4 @@ Next phase: Q3 — Library Mastery.
 - Accounts or cloud sync
 - Recommendation/discovery systems
 - Desktop companion features
-- Large design overhauls that change LibrePlayer's local-only identity
+- Large design overhauls that change LocalTracklist's local-only identity

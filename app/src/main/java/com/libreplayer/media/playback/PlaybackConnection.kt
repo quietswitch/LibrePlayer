@@ -398,7 +398,7 @@ internal fun playbackErrorMessage(errorCode: Int): String =
         PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
             "This track file is no longer available."
         PlaybackException.ERROR_CODE_IO_NO_PERMISSION ->
-            "LibrePlayer no longer has permission to read this track."
+            "LocalTracklist no longer has permission to read this track."
         PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
         PlaybackException.ERROR_CODE_DECODING_FAILED,
         PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ->

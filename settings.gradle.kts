@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "LibrePlayer"
+rootProject.name = "LocalTracklist"
 include(":app")
 include(":benchmark")
 include(":baselineprofile")

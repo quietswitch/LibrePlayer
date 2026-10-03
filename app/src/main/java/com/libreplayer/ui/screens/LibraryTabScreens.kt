@@ -166,7 +166,7 @@ fun SongsAlbumsArtistsScreen(
                     } else if (deniedRequestCount > 0) {
                         "Showing saved music. Audio access was denied, but you can retry without leaving the app."
                     } else {
-                        "Showing saved music while LibrePlayer requests audio access to refresh the library."
+                        "Showing saved music while LocalTracklist requests audio access to refresh the library."
                     },
                     actionLabel = when {
                         permissionAction == AudioPermissionAction.OPEN_SETTINGS -> "Open settings"
@@ -188,7 +188,7 @@ fun SongsAlbumsArtistsScreen(
                 )
                 libraryState.isLoading -> LibraryStatusBannerState(
                     title = "Updating library",
-                    message = "Showing saved music while LibrePlayer refreshes your library in the background.",
+                    message = "Showing saved music while LocalTracklist refreshes your library in the background.",
                 )
                 else -> null
             }
@@ -199,11 +199,11 @@ fun SongsAlbumsArtistsScreen(
             libraryState.permissionRequired && !hasVisibleContent -> EmptyState(
                 title = "Audio access needed",
                 message = if (permissionAction == AudioPermissionAction.OPEN_SETTINGS) {
-                    "LibrePlayer only reads your local music library. Audio access is still blocked, so open Android settings and allow Music and audio access."
+                    "LocalTracklist only reads your local music library. Audio access is still blocked, so open Android settings and allow Music and audio access."
                 } else if (deniedRequestCount > 0) {
-                    "LibrePlayer only reads your local music library. Audio access was denied, but you can try again here without leaving the app."
+                    "LocalTracklist only reads your local music library. Audio access was denied, but you can try again here without leaving the app."
                 } else {
-                    "LibrePlayer only reads your local music library. Grant audio access to scan songs on this device."
+                    "LocalTracklist only reads your local music library. Grant audio access to scan songs on this device."
                 },
                 modifier = Modifier.padding(combinedPadding),
                 action = {
@@ -295,7 +295,7 @@ private fun SongsList(
     if (songs.isEmpty()) {
         EmptyState(
             title = "No music found",
-            message = "LibrePlayer only shows local audio files. Add music to your device or import a folder from Settings.",
+            message = "LocalTracklist only shows local audio files. Add music to your device or import a folder from Settings.",
             modifier = Modifier.padding(contentPadding),
         )
         return
@@ -359,7 +359,7 @@ private fun AlbumsList(
     if (libraryState.albums.isEmpty()) {
         EmptyState(
             title = "No albums yet",
-            message = "Albums appear once LibrePlayer can read local audio metadata on this device.",
+            message = "Albums appear once LocalTracklist can read local audio metadata on this device.",
             modifier = Modifier.padding(contentPadding),
         )
         return
@@ -387,7 +387,7 @@ private fun ArtistsList(
     if (libraryState.artists.isEmpty()) {
         EmptyState(
             title = "No artists yet",
-            message = "Artists appear once LibrePlayer can read local audio metadata on this device.",
+            message = "Artists appear once LocalTracklist can read local audio metadata on this device.",
             modifier = Modifier.padding(contentPadding),
         )
         return
