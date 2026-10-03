@@ -45,7 +45,7 @@ Q1.1 Performance Authority and Q2 Playback Mastery are closed. Q3.1 through Q3.6
 
 ## Next Recommended Step
 
-Release verification is complete for commit `8d5182f48c436aba0c7be40fb94e88289ae5e6af`: 199 unit tests passed with zero failures/skips; lint completed with 45 warnings and 3 hints; debug, release, Android-test, and benchmark assemblies passed. The unsigned release APK is 19,946,505 bytes with SHA-256 `e7087fbd4a72721d7ae8ddb8453357bb6efb7cd9785d4bd255029ecf9465d0d3`. Next: sign that exact APK with the existing permanent release key, verify the signer/certificate and signed APK hash, then create the `v1.1.0` tag and publish the signed APK.
+The repository-native `Release verification` workflow is the authority for the release candidate: it must pass 199 unit tests with zero failures/skips, lint, debug/release assembly, Android-test assembly, benchmark assembly, declared-version checks, artifact hashing, and artifact upload on the exact release commit. Sign only the unsigned APK from that successful release-commit workflow artifact with the existing permanent release key; verify the signer/certificate and signed APK hash before creating the `v1.1.0` tag and publishing the signed APK.
 
 ## Benchmark Foundation
 
