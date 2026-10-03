@@ -2,7 +2,7 @@
 
 ## Current Development Status
 
-Version `1.1.0` (`versionCode` 6) is the current release candidate. The exact GitHub `master` tree has passed the repository-native release-verification workflow; the latest published GitHub release remains `v1.0.4` until the verified 1.1.0 artifact is signed with the existing permanent release key, tagged, and published.
+Version `1.1.0` (`versionCode` 6) is the current release candidate. The repository-native release-verification workflow is the authority for the exact candidate tree. The latest published GitHub release remains `v1.0.4` until the unsigned artifact from the latest successful verification run whose head SHA equals current `master` is signed with the existing permanent release key, tagged, and published.
 
 ## What Is Working
 
