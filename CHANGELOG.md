@@ -1,6 +1,18 @@
 # Changelog
 
-## 1.0.4 (versionCode 5) — Unreleased
+## 1.1.0 (versionCode 6) — Unreleased
+
+- Builds on the public 1.0.4 release with the 28 post-release development commits that established the current development line.
+- Adds reusable performance authority, deterministic fixtures, benchmark infrastructure, and an accepted packaged Baseline Profile.
+- Hardens playback semantics across queue behavior, seeking, track transitions, audio focus, background/system controls, output switching, failure recovery, and bounded long-session testing.
+- Establishes deterministic library identity, grouping, ordering, search, metadata-pathology, and artwork semantics.
+- Adds M3U/M3U8 playlist import and export through local-only Android document access.
+- Adds source-scoped library provenance and an explicit non-destructive Room v1-to-v2 migration while preserving established Song IDs and stored user references where provenance can be proven.
+- Removes the top-level Songs destination, makes Albums the default library destination, and focuses artist detail on albums.
+- Retains LibrePlayer's offline/local-first posture with no Internet permission, accounts, analytics, or telemetry.
+- Final 1.1.0 tagging and APK publication remain pending release verification and reconciliation of the local Q3.7 instrumentation-source delta.
+
+## 1.0.4 (versionCode 5) — 2026-08-24
 
 - Provides offline, local-first library browsing and playback for device audio.
 - Includes songs, albums, artists, playlists, favorites, history, search, queue controls, background playback, and playback-state restoration.
